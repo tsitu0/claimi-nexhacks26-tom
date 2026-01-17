@@ -22,6 +22,19 @@
   background-color: rgba(239, 68, 68, 0.08) !important;
 }
 
+/* Highlight for low confidence fields (filled but uncertain) */
+.claimly-low-confidence {
+  outline: 2px dashed #f59e0b !important;
+  outline-offset: 2px;
+  background-color: rgba(245, 158, 11, 0.05) !important;
+  animation: claimly-pulse 2s ease-in-out infinite;
+}
+
+@keyframes claimly-pulse {
+  0%, 100% { outline-color: #f59e0b; }
+  50% { outline-color: #fbbf24; }
+}
+
 /* Floating status badge */
 .claimly-badge {
   position: fixed;
@@ -96,6 +109,10 @@
   color: #f59e0b;
 }
 
+.claimly-stat-warning {
+  color: #fbbf24;
+}
+
 .claimly-badge-actions {
   display: flex;
   gap: 8px;
@@ -129,6 +146,30 @@
 
 .claimly-btn-secondary:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+.claimly-btn-warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  color: #1e1e2e;
+}
+
+.claimly-btn-warning:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+.claimly-btn-danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.claimly-btn-danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.claimly-btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
 }
 
 .claimly-btn-close {
@@ -187,4 +228,41 @@
 
 @keyframes claimly-spin {
   to { transform: rotate(360deg); }
+}
+
+/* Confidence Tooltip */
+.claimly-confidence-tooltip {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  min-width: 200px;
+  animation: claimly-fade-in 0.2s ease;
+}
+
+.claimly-tooltip-header {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: #fbbf24;
+}
+
+.claimly-tooltip-body {
+  font-size: 12px;
+  color: #a1a1aa;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.claimly-tooltip-body strong {
+  color: #fff;
+}
+
+.claimly-tooltip-actions {
+  display: flex;
+  gap: 8px;
 }
