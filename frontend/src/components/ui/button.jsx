@@ -7,6 +7,8 @@ const Button = React.forwardRef(
     const variants = {
       default:
         "bg-[#2563EB] text-white hover:bg-[#1E40AF] shadow-sm shadow-black/20",
+      light:
+        "border border-slate-200 text-slate-900 hover:border-slate-300 hover:bg-slate-50",
       outline:
         "border border-white/15 text-white/90 hover:border-white/30 hover:text-white",
       ghost: "text-white/80 hover:text-white hover:bg-white/5",

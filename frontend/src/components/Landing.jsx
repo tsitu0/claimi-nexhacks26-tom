@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 export default function Landing() {
   const [healthStatus, setHealthStatus] = useState("loading");
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5171";
+  const router = useRouter();
 
   useEffect(() => {
     const check = async () => {
@@ -38,9 +40,6 @@ export default function Landing() {
           <div className="text-lg font-semibold tracking-wide text-white">
             Claimi
           </div>
-          <Button variant="ghost" className="text-white/80">
-            Sign in
-          </Button>
         </div>
       </header>
 
@@ -62,8 +61,14 @@ export default function Landing() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button size="lg">Continue with Google</Button>
-              <Button variant="outline" size="lg">
+              <Button size="lg" onClick={() => router.push("/signup")}>
+                Continue with Google
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => router.push("/signup")}
+              >
                 Sign up with email
               </Button>
             </div>
@@ -82,8 +87,10 @@ export default function Landing() {
               <div className="h-6 w-3/4 rounded-lg border border-white/10 bg-white/5" />
             </CardContent>
             <CardFooter className="flex flex-wrap gap-3">
-              <Button size="lg">Get started</Button>
-              <Button variant="outline" size="lg">
+              <Button size="lg" onClick={() => router.push("/signup")}>
+                Get started
+              </Button>
+              <Button variant="outline" size="lg" onClick={() => router.push("/")}>
                 Learn more
               </Button>
             </CardFooter>
