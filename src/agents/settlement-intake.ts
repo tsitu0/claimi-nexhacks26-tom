@@ -56,7 +56,7 @@ You MUST output valid JSON matching this exact structure:
   "case_name": "Official case name exactly as written (e.g., 'Gelasio v. Educative Inc., Case No. 25-CIV-02720') or null",
   "description": "One sentence describing what the settlement is about, using original wording where possible",
   "settlement_amount": "Total settlement amount as stated (e.g., '$625,000') or null",
-  "deadline": "YYYY-MM-DD format or null if not found",
+  "deadline": "CLAIM DEADLINE in YYYY-MM-DD format (look for 'Deadline to file a claim', 'Claim Form Deadline', 'File by' dates)",
   "eligibility_rules": {
     "locations": {
       "include": ["Exact locations as stated - e.g., 'California', 'United States'"],
@@ -99,10 +99,16 @@ EXTRACTION RULES:
 3. CAPTURE ALL KEY DETAILS - Title, provider/defendant, case name, amounts, deadlines
 4. IGNORE NOISE - Skip user comments, newsletter signups, related articles, ads
 5. MULTIPLE CITATIONS - Include a citation for EACH major eligibility requirement
-6. DATE PRECISION - Convert all dates to YYYY-MM-DD format
+6. DATE PRECISION - Convert all dates to YYYY-MM-DD format (e.g., "March 11, 2026" → "2026-03-11", "02/13/2026" → "2026-02-13")
 7. PROOF SPECIFICITY - List each proof type separately (receipt, screenshot, email, etc.)
 8. If location not specified, assume "United States" for include
 9. Return ONLY valid JSON, no markdown or explanations
+
+⚠️ DEADLINE EXTRACTION (CRITICAL):
+- Look for "Deadline to file a claim:", "Claim Form Deadline:", "Claims must be filed by:"
+- The deadline is the last date users can submit claims, NOT the final hearing date
+- Convert MM/DD/YYYY or "Month DD, YYYY" to YYYY-MM-DD format
+- Example: "Deadline to file a claim: 02/13/2026" → deadline: "2026-02-13"
 
 ⚠️ CLAIM URL RULES (CRITICAL):
 - Look for "CLICK HERE TO FILE A CLAIM" or similar links - extract the DESTINATION URL
@@ -334,7 +340,29 @@ export async function discoverSettlement(url: string, force: boolean = false): P
       console.log('⚠️  No claim form URL found');
     }
 
-    // Step 6: Build settlement data with all extracted fields
+    // Step 6: Check deadline validity (skip expired settlements)
+    if (parsed.deadline) {
+      const deadlineDate = new Date(parsed.deadline);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (deadlineDate < today) {
+        console.log(`⏰ Skipping expired settlement: ${parsed.title} (deadline: ${parsed.deadline})`);
+        return {
+          success: false,
+          error: `Settlement deadline has expired: ${parsed.deadline}`,
+          raw_scraped: scrapedPage,
+        };
+      }
+      
+      // Calculate days remaining
+      const daysRemaining = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      console.log(`📅 Deadline: ${parsed.deadline} (${daysRemaining} days remaining)`);
+    } else {
+      console.log(`⚠️  No deadline found for: ${parsed.title}`);
+    }
+
+    // Step 7: Build settlement data with all extracted fields
     const settlement: SettlementData = {
       title: parsed.title,
       provider: parsed.provider,
@@ -352,14 +380,14 @@ export async function discoverSettlement(url: string, force: boolean = false): P
       status: 'discovered',
     };
 
-    // Step 7: Log form validation status (but still store regardless)
+    // Step 8: Log form validation status (but still store regardless)
     if (!hasValidForm) {
       console.log(`⚠️  No valid claim form found for: ${settlement.title}`);
       console.log(`   Reason: ${claimFormInfo?.validation_reason || 'No form URL detected'}`);
       console.log(`   Still storing settlement for tracking...`);
     }
 
-    // Step 8: Store in Supabase
+    // Step 9: Store in Supabase
     console.log('💾 Storing in Supabase...');
     const stored = await storeSettlement(settlement);
     

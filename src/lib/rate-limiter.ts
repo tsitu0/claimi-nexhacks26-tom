@@ -3,7 +3,7 @@ import { getSupabase } from './supabase';
 /**
  * Daily discovery limit
  */
-const DAILY_DISCOVERY_LIMIT = 5;
+const DAILY_DISCOVERY_LIMIT = 10;
 
 /**
  * Discovery stats tracking

@@ -14,27 +14,36 @@ interface SettlementSource {
 /**
  * Known settlement sources to crawl
  * Prioritized by quality and likelihood of having valid claim forms
+ * DIVERSIFIED across multiple sources for variety
  */
 const SETTLEMENT_SOURCES: SettlementSource[] = [
-  // Primary source - most reliable, has structured settlement pages
+  // === Source 1: Top Class Actions - Open Settlements (primary) ===
   {
-    name: 'Top Class Actions - Open Settlements',
+    name: 'Top Class Actions - Open',
     url: 'https://topclassactions.com/lawsuit-settlements/open-lawsuit-settlements/',
     type: 'html',
     selector: 'a[href*="/lawsuit-settlements/open-lawsuit-settlements/"][href$="/"]',
   },
-  // Secondary sources
+  // === Source 2: Top Class Actions - Page 2 (more settlements) ===
+  {
+    name: 'Top Class Actions - Page 2',
+    url: 'https://topclassactions.com/lawsuit-settlements/open-lawsuit-settlements/page/2/',
+    type: 'html',
+    selector: 'a[href*="/lawsuit-settlements/open-lawsuit-settlements/"][href$="/"]',
+  },
+  // === Source 3: Top Class Actions - Page 3 ===
+  {
+    name: 'Top Class Actions - Page 3',
+    url: 'https://topclassactions.com/lawsuit-settlements/open-lawsuit-settlements/page/3/',
+    type: 'html',
+    selector: 'a[href*="/lawsuit-settlements/open-lawsuit-settlements/"][href$="/"]',
+  },
+  // === Source 4: Class Action Rebates ===
   {
     name: 'Class Action Rebates',
     url: 'https://www.classactionrebates.com/settlements/',
     type: 'html',
-    selector: 'a[href*="/settlements/"]',
-  },
-  {
-    name: 'Consumer Finance Settlements',
-    url: 'https://www.consumerfinance.gov/enforcement/payments-to-harmed-consumers/',
-    type: 'html',
-    selector: 'a[href*="settlement"]',
+    selector: 'a[href*="classactionrebates.com/settlements/"][href$="/"]',
   },
 ];
 
@@ -54,7 +63,7 @@ const SETTLEMENT_URL_PATTERNS = [
 ];
 
 /**
- * URL patterns to exclude (category pages, non-settlement pages)
+ * URL patterns to exclude (category pages, non-settlement pages, social shares)
  */
 const EXCLUDE_URL_PATTERNS = [
   /\/category\//i,
@@ -65,6 +74,22 @@ const EXCLUDE_URL_PATTERNS = [
   /\/open-lawsuit-settlements\/?$/i,  // The main list page
   /\/lawsuit-news\/?$/i,
   /javascript:/i,
+  // Social share links
+  /facebook\.com\/sharer/i,
+  /twitter\.com\/intent/i,
+  /linkedin\.com\/share/i,
+  /pinterest\.com\/pin/i,
+  /reddit\.com\/submit/i,
+  /mailto:/i,
+  /whatsapp:/i,
+  // Other non-settlement URLs
+  /\/feed\/?$/i,
+  /\/rss\/?$/i,
+  /\.pdf$/i,
+  /\/contact\/?$/i,
+  /\/about\/?$/i,
+  /\/privacy\/?$/i,
+  /\/terms\/?$/i,
 ];
 
 /**
@@ -153,38 +178,64 @@ function isValidSettlementUrl(url: string): boolean {
 
 /**
  * Crawl all known sources for new settlement URLs
+ * Balances across sources to ensure diversity
  */
 export async function crawlSettlementSources(maxUrls: number = 10): Promise<DiscoveredUrl[]> {
-  console.log('🔍 Starting settlement source crawl...');
+  console.log('🔍 Starting multi-source settlement crawl...');
   
-  const allDiscovered: DiscoveredUrl[] = [];
-  const seenUrls = new Set<string>();
-
+  // First, crawl all sources and collect URLs
+  const urlsBySource: Map<string, DiscoveredUrl[]> = new Map();
+  
   for (const source of SETTLEMENT_SOURCES) {
     try {
       const urls = await crawlSource(source);
-      
-      for (const discovered of urls) {
-        if (!seenUrls.has(discovered.url)) {
-          seenUrls.add(discovered.url);
-          allDiscovered.push(discovered);
-          
-          if (allDiscovered.length >= maxUrls) {
-            console.log(`📊 Reached max URLs (${maxUrls}), stopping crawl`);
-            return allDiscovered;
-          }
-        }
+      if (urls.length > 0) {
+        urlsBySource.set(source.name, urls);
       }
-      
       // Be polite between sources
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
     } catch (error: any) {
       console.error(`Error with source ${source.name}:`, error.message);
     }
   }
+  
+  console.log(`📊 Crawled ${urlsBySource.size} sources`);
+  
+  // Balance selection across sources (round-robin style)
+  const allDiscovered: DiscoveredUrl[] = [];
+  const seenUrls = new Set<string>();
+  const sourceNames = Array.from(urlsBySource.keys());
+  const sourceIndices = new Map<string, number>();
+  sourceNames.forEach(name => sourceIndices.set(name, 0));
+  
+  // Keep selecting from sources in round-robin until we have enough or exhausted all
+  let exhaustedSources = 0;
+  while (allDiscovered.length < maxUrls && exhaustedSources < sourceNames.length) {
+    exhaustedSources = 0;
+    
+    for (const sourceName of sourceNames) {
+      if (allDiscovered.length >= maxUrls) break;
+      
+      const sourceUrls = urlsBySource.get(sourceName) || [];
+      const currentIndex = sourceIndices.get(sourceName) || 0;
+      
+      if (currentIndex >= sourceUrls.length) {
+        exhaustedSources++;
+        continue;
+      }
+      
+      const url = sourceUrls[currentIndex];
+      sourceIndices.set(sourceName, currentIndex + 1);
+      
+      if (!seenUrls.has(url.url)) {
+        seenUrls.add(url.url);
+        allDiscovered.push(url);
+        console.log(`   📎 [${sourceName.substring(0, 20)}...] ${url.title?.substring(0, 40) || url.url.substring(0, 40)}...`);
+      }
+    }
+  }
 
-  console.log(`✅ Crawl complete. Found ${allDiscovered.length} unique settlement URLs`);
+  console.log(`✅ Crawl complete. Found ${allDiscovered.length} unique settlement URLs from ${urlsBySource.size} sources`);
   return allDiscovered;
 }
 
