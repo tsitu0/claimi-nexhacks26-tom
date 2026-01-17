@@ -1,0 +1,119 @@
+{
+  "packets": [
+    {
+      "id": "tech-product-settlement-2024",
+      "settlementName": "Tech Product Class Action Settlement 2024",
+      "settlementUrl": "https://example-techsettlement.com/claim",
+      "deadline": "2024-12-31",
+      "userData": {
+        "firstName": "John",
+        "lastName": "Doe",
+        "fullName": "John Doe",
+        "email": "john.doe@email.com",
+        "phone": "555-123-4567",
+        "dateOfBirth": "1990-05-15",
+        "address": {
+          "street": "123 Main Street",
+          "unit": "Apt 4B",
+          "city": "San Francisco",
+          "state": "CA",
+          "zip": "94102",
+          "country": "United States"
+        },
+        "productName": "TechWidget Pro",
+        "productModel": "TW-2000",
+        "serialNumber": "SN-ABC123456",
+        "purchaseDate": "2023-03-15",
+        "purchaseAmount": "299.99",
+        "storeName": "Best Buy",
+        "receiptNumber": "REC-789012"
+      },
+      "caseAnswers": {
+        "ownedProduct": true,
+        "purchasedInUS": true,
+        "experiencedIssue": true,
+        "issueDescription": "Device overheated and stopped working",
+        "claimAmount": "full-refund"
+      }
+    },
+    {
+      "id": "data-breach-settlement-2024",
+      "settlementName": "Consumer Data Breach Settlement",
+      "settlementUrl": "https://example-databreach.com/file-claim",
+      "deadline": "2025-06-30",
+      "userData": {
+        "firstName": "Jane",
+        "lastName": "Smith",
+        "fullName": "Jane Smith",
+        "email": "jane.smith@email.com",
+        "phone": "555-987-6543",
+        "dateOfBirth": "1985-11-22",
+        "ssn": "XXX-XX-1234",
+        "address": {
+          "street": "456 Oak Avenue",
+          "unit": "",
+          "city": "Los Angeles",
+          "state": "CA",
+          "zip": "90001",
+          "country": "United States"
+        }
+      },
+      "caseAnswers": {
+        "hadAccountDuringBreach": true,
+        "breachPeriodStart": "2022-01-01",
+        "breachPeriodEnd": "2023-06-30",
+        "experiencedIdentityTheft": false,
+        "experiencedFinancialLoss": true,
+        "financialLossAmount": "150.00"
+      }
+    },
+    {
+      "id": "automotive-defect-2024",
+      "settlementName": "Automotive Safety Defect Settlement",
+      "settlementUrl": "https://example-autosettlement.com",
+      "deadline": "2025-03-15",
+      "userData": {
+        "firstName": "Michael",
+        "lastName": "Johnson",
+        "fullName": "Michael Johnson",
+        "email": "m.johnson@email.com",
+        "phone": "555-456-7890",
+        "dateOfBirth": "1978-08-10",
+        "address": {
+          "street": "789 Elm Drive",
+          "unit": "Suite 100",
+          "city": "Chicago",
+          "state": "IL",
+          "zip": "60601",
+          "country": "United States"
+        },
+        "vehicleMake": "AutoBrand",
+        "vehicleModel": "Sedan XL",
+        "vehicleYear": "2021",
+        "vin": "1HGBH41JXMN109186",
+        "purchaseDate": "2021-04-20",
+        "currentMileage": "45000",
+        "dealerName": "City Auto Dealer"
+      },
+      "caseAnswers": {
+        "experiencedDefect": true,
+        "defectType": "brake-system",
+        "defectDate": "2023-09-15",
+        "vehicleRepaired": true,
+        "repairCost": "1250.00",
+        "hasReceipts": true
+      }
+    }
+  ],
+  "schema": {
+    "version": "1.0.0",
+    "description": "Claimly Claim Packet Schema",
+    "requiredFields": ["id", "settlementName", "userData"],
+    "userData": {
+      "personalInfo": ["firstName", "lastName", "fullName", "email", "phone", "dateOfBirth"],
+      "address": ["street", "unit", "city", "state", "zip", "country"],
+      "purchaseInfo": ["productName", "productModel", "serialNumber", "purchaseDate", "purchaseAmount", "storeName", "receiptNumber"],
+      "vehicleInfo": ["vehicleMake", "vehicleModel", "vehicleYear", "vin", "currentMileage", "dealerName"]
+    }
+  }
+}
