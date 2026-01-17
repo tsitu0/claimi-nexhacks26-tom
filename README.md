@@ -1,9 +1,9 @@
-# claimi-nexhacks26
+# Claimi
 
-Simple React + Express starter with a Supabase health check.
+Next.js + Express starter with a Supabase health check and Claimi landing page.
 
 ## Structure
-- `frontend/` Vite React app
+- `frontend/` Next.js app
 - `backend/` Express API (`/health`)
 
 ## Prereqs
@@ -28,11 +28,9 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 PORT=5171
 ```
 
-`frontend/.env`
+`frontend/.env.local`
 ```
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_anon_key
-VITE_API_URL=http://localhost:5171
+NEXT_PUBLIC_API_URL=http://localhost:5171
 ```
 
 ## Run
@@ -46,4 +44,4 @@ cd frontend
 npm run dev
 ```
 
-Open the frontend dev server URL. If the backend + Supabase are reachable, the UI will show "API OK".
+Open the frontend dev server URL. If the backend + Supabase are reachable, the UI will show "Supabase connected".
