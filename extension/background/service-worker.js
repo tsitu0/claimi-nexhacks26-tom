@@ -1,11 +1,3 @@
-/**
- * Claimly Autofill Agent - Background Service Worker
- * 
- * Handles:
- * - Storage management for claim packets
- * - Communication between popup and content scripts
- * - API calls for Tier 3 agentic matching
- */
 
 // Default API configuration
 const CONFIG = {

@@ -10,7 +10,7 @@
         "lastName": "Doe",
         "fullName": "John Doe",
         "email": "john.doe@email.com",
-        "phone": "555-123-4567",
+        "phone": "909-228-4332",
         "dateOfBirth": "1990-05-15",
         "address": {
           "street": "123 Main Street",
@@ -46,7 +46,7 @@
         "lastName": "Smith",
         "fullName": "Jane Smith",
         "email": "jane.smith@email.com",
-        "phone": "555-987-6543",
+        "phone": "310-555-0199",
         "dateOfBirth": "1985-11-22",
         "ssn": "XXX-XX-1234",
         "address": {
@@ -77,7 +77,7 @@
         "lastName": "Johnson",
         "fullName": "Michael Johnson",
         "email": "m.johnson@email.com",
-        "phone": "555-456-7890",
+        "phone": "312-555-0147",
         "dateOfBirth": "1978-08-10",
         "address": {
           "street": "789 Elm Drive",

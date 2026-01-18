@@ -14,7 +14,7 @@
  * 10. Confidence scoring and review UI
  */
 
-console.log('[Claimly] Advanced Autofill Agent loading...');
+console.log('[Claimi] Advanced Autofill Agent loading...');
 
 // ============================================================================
 // GLOBAL STATE
@@ -113,7 +113,7 @@ const FIELD_SCHEMAS = {
     dataType: 'text',
     positiveSignals: {
       autocomplete: ['given-name'],
-      keywords: ['first name', 'given name', 'forename'],
+      keywords: ['first name', 'given name', 'forename', 'legal first name'],
       patterns: [/^first[-_]?name$/i, /^fname$/i, /^given[-_]?name$/i],
     },
     negativeSignals: {
@@ -130,7 +130,7 @@ const FIELD_SCHEMAS = {
     dataType: 'text',
     positiveSignals: {
       autocomplete: ['family-name'],
-      keywords: ['last name', 'surname', 'family name'],
+      keywords: ['last name', 'surname', 'family name', 'legal last name'],
       patterns: [/^last[-_]?name$/i, /^lname$/i, /^surname$/i, /^family[-_]?name$/i],
     },
     negativeSignals: {
@@ -162,12 +162,15 @@ const FIELD_SCHEMAS = {
     dataType: 'email',
     positiveSignals: {
       autocomplete: ['email'],
-      keywords: ['email address', 'e-mail', 'your email'],
-      patterns: [/^e?-?mail$/i, /^email[-_]?addr/i],
+      keywords: ['email address', 'e-mail', 'your email', 'email', 
+                 'confirm email address', 'confirm your email', 'confirm email',
+                 'verify email address', 'verify your email', 'verify email'],
+      patterns: [/^e?-?mail$/i, /^email[-_]?addr/i, /^confirm[-_]?email$/i, /^verify[-_]?email$/i],
       types: ['email'],
     },
     negativeSignals: {
-      keywords: ['confirm', 'verify', 'repeat', 're-enter', 'retype'],
+      // Only block generic "repeat/re-enter" - allow confirm/verify for email
+      keywords: ['repeat', 're-enter', 'retype', 'type again'],
       autocomplete: [],
       types: [],
     },
@@ -178,13 +181,18 @@ const FIELD_SCHEMAS = {
     dataType: 'phone',
     positiveSignals: {
       autocomplete: ['tel', 'tel-national', 'tel-local'],
-      keywords: ['phone number', 'telephone number', 'mobile number', 'cell phone'],
-      patterns: [/^phone$/i, /^tel$/i, /^telephone$/i, /^mobile$/i],
+      keywords: ['phone number', 'telephone number', 'mobile number', 'cell phone', 
+                 'phone', 'telephone', 'mobile phone', 'contact phone', 'daytime phone',
+                 'primary phone', 'home phone number', 'cell number'],
+      patterns: [/^phone$/i, /^tel$/i, /^telephone$/i, /^mobile$/i, 
+                 /^phone[-_]?number$/i, /^phone[-_]?num$/i, /^cell$/i,
+                 /^contact[-_]?phone$/i, /^primary[-_]?phone$/i],
       types: ['tel'],
     },
     negativeSignals: {
       keywords: ['how many', 'number of', 'count', 'quantity', 'students', 
-                 'attendees', 'participants', 'items', 'extension', 'fax'],
+                 'attendees', 'participants', 'items', 'extension', 'fax',
+                 'order number', 'confirmation number', 'reference number'],
       autocomplete: [],
       types: ['number'],
       inputmodes: ['numeric'],
@@ -192,14 +200,28 @@ const FIELD_SCHEMAS = {
       hasMinMax: true,
     },
     validator: (value) => {
-      if (typeof libphonenumber !== 'undefined') {
+      const phoneStr = String(value);
+      console.log('[Claimly] Phone validator called with:', phoneStr);
+      
+      // Check if libphonenumber is available and has the function
+      if (typeof libphonenumber !== 'undefined' && typeof libphonenumber.isValidPhoneNumber === 'function') {
         try {
-          return libphonenumber.isValidPhoneNumber(String(value), 'US');
-        } catch { return false; }
+          const result = libphonenumber.isValidPhoneNumber(phoneStr, 'US');
+          console.log('[Claimly] libphonenumber result:', result);
+          return result;
+        } catch (e) {
+          console.log('[Claimly] libphonenumber error:', e.message);
+          // Fall through to basic check
+        }
+      } else {
+        console.log('[Claimly] libphonenumber not available, using basic check');
       }
-      // Fallback: basic check
-      const digits = String(value).replace(/\D/g, '');
-      return digits.length >= 10 && digits.length <= 15;
+      
+      // Fallback: basic digit check
+      const digits = phoneStr.replace(/\D/g, '');
+      const isValid = digits.length >= 7 && digits.length <= 15;
+      console.log('[Claimly] Basic check - digits:', digits.length, 'valid:', isValid);
+      return isValid;
     },
   },
   
@@ -749,6 +771,54 @@ function matchFieldTiered(field) {
   if (bestTier === 1 && bestScore >= 0.8) {
     console.log(`[Claimly]   ✅ T1: pattern match → ${bestMatch} (${bestScore.toFixed(2)})`);
     return { key: bestMatch, tier: 1, confidence: bestScore };
+  }
+  
+  // TIER 1.5: Hardcoded exact label matches (high confidence for common fields)
+  const exactLabelMatches = {
+    'phone number': 'phone',
+    'phone': 'phone',
+    'telephone': 'phone',
+    'telephone number': 'phone',
+    'mobile number': 'phone',
+    'mobile phone': 'phone',
+    'cell phone': 'phone',
+    'cell phone number': 'phone',
+    'contact phone': 'phone',
+    'daytime phone': 'phone',
+    'email': 'email',
+    'email address': 'email',
+    'e-mail': 'email',
+    'e-mail address': 'email',
+    'your email': 'email',
+    'confirm email': 'email',
+    'confirm email address': 'email',
+    'confirm your email': 'email',
+    'verify email': 'email',
+    'verify email address': 'email',
+    'first name': 'firstName',
+    'last name': 'lastName',
+    'full name': 'fullName',
+    'your name': 'fullName',
+    'name': 'fullName',
+    'street address': 'address.street',
+    'mailing address': 'address.street',
+    'address': 'address.street',
+    'city': 'address.city',
+    'state': 'address.state',
+    'zip code': 'address.zip',
+    'postal code': 'address.zip',
+    'zip': 'address.zip',
+    'country': 'address.country',
+  };
+  
+  const labelLower = normalizeForDisplay(labelText);
+  if (exactLabelMatches[labelLower]) {
+    const key = exactLabelMatches[labelLower];
+    if (!hasNegativeEvidence(key, semantics, labelText, descriptionText)) {
+      const score = 0.9;
+      console.log(`[Claimly]   ✅ T1.5: exact label "${labelLower}" → ${key} (${score.toFixed(2)})`);
+      return { key, tier: 1.5, confidence: score };
+    }
   }
   
   // TIER 2: Fuzzy matching with strict threshold
