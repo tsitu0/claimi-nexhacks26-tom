@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,23 +18,8 @@ import GoogleLogo from "@/components/GoogleLogo";
 import { supabase } from "@/lib/supabase";
 
 export default function Landing() {
-  const [healthStatus, setHealthStatus] = useState("loading");
   const [authStatus, setAuthStatus] = useState("idle");
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5171";
   const router = useRouter();
-
-  useEffect(() => {
-    const check = async () => {
-      try {
-        const res = await fetch(`${apiUrl}/health`);
-        const data = await res.json();
-        setHealthStatus(data?.ok ? "ok" : "error");
-      } catch {
-        setHealthStatus("error");
-      }
-    };
-    check();
-  }, [apiUrl]);
 
   const handleGoogle = async () => {
     setAuthStatus("loading");
@@ -246,11 +231,6 @@ export default function Landing() {
             <a href="#contact" className="hover:text-white">
               Contact
             </a>
-          </div>
-          <div aria-live="polite">
-            {healthStatus === "loading" && "Checking Supabase..."}
-            {healthStatus === "ok" && "Supabase connected"}
-            {healthStatus === "error" && "Supabase not connected"}
           </div>
         </div>
       </footer>

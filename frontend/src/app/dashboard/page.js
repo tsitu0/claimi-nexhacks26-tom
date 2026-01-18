@@ -795,14 +795,6 @@ export default function DashboardPage() {
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                 <p className="text-xs uppercase tracking-wide text-white/40">
-                  Parsing confidence
-                </p>
-                <p className="mt-1 text-sm text-white">
-                  {formatConfidence(selectedSettlement.parsing_confidence)}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs uppercase tracking-wide text-white/40">
                   Created
                 </p>
                 <p className="mt-1 text-sm text-white">
@@ -815,14 +807,6 @@ export default function DashboardPage() {
                 </p>
                 <p className="mt-1 text-sm text-white">
                   {formatDate(selectedSettlement.updated_at)}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs uppercase tracking-wide text-white/40">
-                  Record ID
-                </p>
-                <p className="mt-1 text-sm text-white">
-                  {selectedSettlement.id || "Not provided"}
                 </p>
               </div>
             </div>
