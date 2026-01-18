@@ -6,3 +6,6 @@ frontend/out
 frontend-vite/node_modules
 frontend-vite/.env
 frontend-vite/dist
+.env*
+!.env.example
+!.env.sample
