@@ -24,11 +24,17 @@ let claimPacket = null;
 let filledFields = [];
 let pendingFields = [];
 let lowConfidenceFields = [];
+let userQuestionFields = [];  // Fields needing user input
+let fileUploadFields = [];    // File upload fields detected
+let caseAnswerFields = [];    // Fields that matched caseAnswers
 let statusBadge = null;
+let userQuestionModal = null;
+let documentRequestModal = null;
 let fuseIndex = null;
 let miniSearchIndex = null;
 
 const CONFIDENCE_THRESHOLD = 0.75; // Fields below this need review
+const USE_LLM_TRIAGE = true; // Enable LLM-first triage
 
 // ============================================================================
 // TEXT NORMALIZATION (Requirement #9)
@@ -323,7 +329,7 @@ const FIELD_SCHEMAS = {
       types: ['date'],
     },
     negativeSignals: {
-      keywords: ['purchase', 'order', 'event', 'incident', 'transaction'],
+      keywords: ['purchase', 'order', 'event', 'incident', 'transaction', 'date of product purchase'],
       autocomplete: [],
       types: [],
     },
@@ -1037,12 +1043,340 @@ function getNestedValue(obj, path) {
 }
 
 function getFormFields() {
-  const selectors = 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([type="file"]), select, textarea';
-  return Array.from(document.querySelectorAll(selectors)).filter(f => {
-    const style = getComputedStyle(f);
-    const rect = f.getBoundingClientRect();
-    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  const fields = new Set();
+  
+  // Standard form elements
+  const standardSelectors = [
+    'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])',
+    'select',
+    'textarea',
+  ].join(', ');
+  
+  // Add standard elements
+  document.querySelectorAll(standardSelectors).forEach(f => fields.add(f));
+  
+  // Also include file inputs (we want to detect them even if we don't fill them)
+  document.querySelectorAll('input[type="file"]').forEach(f => fields.add(f));
+  
+  // Look for custom form elements (common in React/Vue/Angular)
+  const customSelectors = [
+    '[role="textbox"]',
+    '[role="combobox"]',
+    '[role="listbox"]',
+    '[role="spinbutton"]',
+    '[contenteditable="true"]',
+    '[data-testid*="input"]',
+    '[data-testid*="field"]',
+    '.form-control',
+    '.form-input',
+    '.input-field',
+    '.text-input',
+  ].join(', ');
+  
+  document.querySelectorAll(customSelectors).forEach(f => {
+    // Only add if it's not already a standard input inside
+    if (!f.querySelector('input, select, textarea')) {
+      fields.add(f);
+    }
   });
+  
+  // Look inside shadow DOMs (if accessible)
+  document.querySelectorAll('*').forEach(el => {
+    if (el.shadowRoot) {
+      try {
+        el.shadowRoot.querySelectorAll(standardSelectors).forEach(f => fields.add(f));
+      } catch (e) {
+        // Shadow DOM not accessible
+      }
+    }
+  });
+  
+  // Filter for visibility
+  return Array.from(fields).filter(f => {
+    // Check computed style
+    const style = getComputedStyle(f);
+    if (style.display === 'none' || style.visibility === 'hidden') {
+      return false;
+    }
+    
+    // Check dimensions
+    const rect = f.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      return false;
+    }
+    
+    // Check if element is in viewport or scrollable area
+    // (don't filter out off-screen elements, they might be in a scrollable form)
+    
+    // Check if element is disabled or readonly (still include for detection)
+    // We'll handle disabled fields in the fill logic
+    
+    return true;
+  });
+}
+
+/**
+ * Re-scan for fields that may have been dynamically added
+ * Call this after initial load or after user interaction
+ */
+function rescanFormFields() {
+  const newFields = getFormFields();
+  console.log(`[Claimly] Rescan found ${newFields.length} fields`);
+  return newFields;
+}
+
+// ============================================================================
+// LLM TRIAGE FUNCTIONS
+// ============================================================================
+
+/**
+ * Extract all available keys from userData (flattened for nested objects)
+ */
+function extractUserDataKeys(userData) {
+  const keys = [];
+  function traverse(obj, prefix = '') {
+    for (const [key, value] of Object.entries(obj || {})) {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        traverse(value, fullKey);
+      } else {
+        keys.push(fullKey);
+      }
+    }
+  }
+  traverse(userData);
+  return keys;
+}
+
+/**
+ * Extract all available keys from caseAnswers
+ */
+function extractCaseAnswerKeys(caseAnswers) {
+  return Object.keys(caseAnswers || {});
+}
+
+/**
+ * Call the backend triage API to classify all fields
+ */
+async function triageFieldsViaLLM(fields, packet) {
+  const availableUserDataKeys = extractUserDataKeys(packet.userData);
+  const availableCaseAnswerKeys = extractCaseAnswerKeys(packet.caseAnswers);
+  const caseAnswerMeta = packet.caseAnswerMeta || {};
+  
+  console.log('[Claimly] 🤖 Sending fields to LLM triage...');
+  console.log('[Claimly]    Fields:', fields.length);
+  console.log('[Claimly]    UserData keys:', availableUserDataKeys);
+  console.log('[Claimly]    CaseAnswer keys:', availableCaseAnswerKeys);
+  
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'triageFields',
+      fields: fields.map(f => {
+        const { text: label } = computeAccessibleName(f.element);
+        const description = getDescriptionText(f.element);
+        return {
+          id: f.element.id || f.element.name || `field_${f.index}`,
+          label: label,
+          type: f.element.type || 'text',
+          required: f.element.required || f.element.getAttribute('aria-required') === 'true',
+          context: description,
+          placeholder: f.element.placeholder || '',
+        };
+      }),
+      availableUserDataKeys,
+      availableCaseAnswerKeys,
+      caseAnswerMeta,
+    });
+    
+    console.log('[Claimly] 🤖 Triage response:', response);
+    return response;
+  } catch (error) {
+    console.error('[Claimly] 🤖 Triage error:', error);
+    return { classifications: [], method: 'error', error: error.message };
+  }
+}
+
+/**
+ * Local fallback heuristics when LLM triage is unavailable
+ * Uses STRICT whitelist for STANDARD_PROFILE
+ */
+function classifyFieldLocally(field, label, context) {
+  const fullText = `${label} ${context}`.toLowerCase();
+  const labelLower = label.toLowerCase();
+  const type = (field.type || 'text').toLowerCase();
+  
+  // File upload - check first
+  if (type === 'file' || /upload|attach|document|proof|receipt/i.test(fullText)) {
+    return { category: 'FILE_UPLOAD', confidence: 0.9 };
+  }
+  
+  // Money/price/amount fields - ALWAYS CASE_ANSWER (never standard profile)
+  const moneyPatterns = [
+    /price/i, /cost/i, /amount/i, /fee/i, /commission/i, /payment/i,
+    /sale price/i, /purchase price/i, /total paid/i, /\$/,
+  ];
+  if (moneyPatterns.some(p => p.test(fullText))) {
+    return { category: 'CASE_ANSWER', confidence: 0.9, promptForUser: `Enter the ${label} (e.g., $10,000)` };
+  }
+  
+  // Brokerage/agent/company - ALWAYS CASE_ANSWER
+  const businessPatterns = [
+    /brokerage/i, /broker/i, /agent/i, /realtor/i,
+    /company name/i, /business name/i, /firm name/i,
+  ];
+  if (businessPatterns.some(p => p.test(fullText))) {
+    return { category: 'CASE_ANSWER', confidence: 0.9, promptForUser: `Enter the ${label}` };
+  }
+  
+  // Contextual data - qualifiers that indicate NOT standard profile
+  const contextualPatterns = [
+    /address of (?:home|property|house) sold/i,
+    /previous address/i,
+    /former address/i,
+    /employer'?s? (?:phone|address|name)/i,
+    /spouse'?s? (?:name|phone|email)/i,
+    /at (?:the )?time of/i,
+    /before the/i,
+    /prior to/i,
+    /maiden name/i,
+    /property address/i,
+    /sold property/i,
+  ];
+  
+  if (contextualPatterns.some(p => p.test(fullText))) {
+    return { category: 'CONTEXTUAL_DATA', confidence: 0.85 };
+  }
+  
+  // Yes/No questions - CASE_ANSWER
+  if (/did you|do you|have you|were you|are you|\?$|select (?:all|one)/i.test(fullText)) {
+    return { category: 'CASE_ANSWER', confidence: 0.8 };
+  }
+  
+  // Open-ended descriptions - USER_QUESTION
+  if (/describe|explain|additional comments|tell us about/i.test(fullText)) {
+    return { category: 'USER_QUESTION', confidence: 0.8, promptForUser: `Please ${label.toLowerCase()}. Be specific and provide details.` };
+  }
+  
+  // Optional fields - SKIP
+  if (/optional|referral|how did you hear/i.test(fullText)) {
+    return { category: 'SKIP', confidence: 0.85 };
+  }
+  
+  // STRICT WHITELIST for STANDARD_PROFILE
+  const standardProfilePatterns = [
+    { pattern: /^(first\s*name|given\s*name|fname)$/i, key: 'firstName' },
+    { pattern: /^(last\s*name|family\s*name|surname|lname)$/i, key: 'lastName' },
+    { pattern: /^(full\s*name|your\s*name|name|legal\s*name)$/i, key: 'fullName' },
+    { pattern: /^(email|e-mail|email\s*address)$/i, key: 'email' },
+    { pattern: /^(phone|phone\s*number|telephone|mobile|cell)$/i, key: 'phone' },
+    { pattern: /^(street\s*address|mailing\s*address|address|address\s*line\s*1)$/i, key: 'address.street' },
+    { pattern: /^(address\s*line\s*2|apt|apartment|unit|suite)$/i, key: 'address.unit' },
+    { pattern: /^(city|town)$/i, key: 'address.city' },
+    { pattern: /^(state|province|region)$/i, key: 'address.state' },
+    { pattern: /^(zip|zip\s*code|postal\s*code|postcode)$/i, key: 'address.zip' },
+    { pattern: /^(country)$/i, key: 'address.country' },
+    { pattern: /^(date\s*of\s*birth|birthday|dob|birth\s*date)$/i, key: 'dateOfBirth' },
+  ];
+  
+  for (const { pattern, key } of standardProfilePatterns) {
+    if (pattern.test(labelLower.trim())) {
+      return { category: 'STANDARD_PROFILE', suggestedKey: key, confidence: 0.85 };
+    }
+  }
+  
+  // Default: If we can't confidently classify, treat as CASE_ANSWER (safer than STANDARD_PROFILE)
+  // This prevents hallucination of standard profile data into claim-specific fields
+  return { category: 'CASE_ANSWER', confidence: 0.5, promptForUser: `Please provide: ${label}` };
+}
+
+/**
+ * Detect duplicate values filled in semantically different fields
+ * Returns array of field records that have suspicious duplicates
+ */
+function detectDuplicateValues(filledFields) {
+  const valueMap = new Map(); // value -> [field records]
+  const suspiciousDuplicates = [];
+  
+  for (const record of filledFields) {
+    const value = String(record.value).trim().toLowerCase();
+    
+    // Skip trivial values that are often legitimately duplicated
+    if (!value || value.length < 3 || /^(yes|no|true|false|n\/a|na|none)$/i.test(value)) {
+      continue;
+    }
+    
+    if (!valueMap.has(value)) {
+      valueMap.set(value, []);
+    }
+    valueMap.get(value).push(record);
+  }
+  
+  // Check for duplicates
+  for (const [value, records] of valueMap) {
+    if (records.length >= 2) {
+      // Check if fields are semantically different
+      const labels = records.map(r => {
+        const { text } = computeAccessibleName(r.field);
+        return text.toLowerCase();
+      });
+      
+      // If the labels are different, this is suspicious
+      const uniqueLabels = new Set(labels);
+      if (uniqueLabels.size >= 2) {
+        console.log(`[Claimly] ⚠️ Duplicate value "${value}" in ${records.length} different fields:`, labels);
+        suspiciousDuplicates.push(...records);
+      }
+    }
+  }
+  
+  return suspiciousDuplicates;
+}
+
+/**
+ * Show toast notification for duplicate detection
+ */
+function showDuplicateWarningToast(count) {
+  const existingToast = document.querySelector('.claimly-toast');
+  existingToast?.remove();
+  
+  const toast = document.createElement('div');
+  toast.className = 'claimly-toast claimly-toast-warning';
+  toast.innerHTML = `
+    <span class="claimly-toast-icon">⚠️</span>
+    <span class="claimly-toast-message">
+      <strong>Review needed:</strong> Same value filled in ${count} different fields. Please verify.
+    </span>
+    <button class="claimly-toast-close">×</button>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  toast.querySelector('.claimly-toast-close')?.addEventListener('click', () => toast.remove());
+  
+  // Auto-dismiss after 8 seconds
+  setTimeout(() => toast.remove(), 8000);
+}
+
+/**
+ * Match a field against caseAnswers data
+ */
+function matchCaseAnswer(suggestedKey, caseAnswers) {
+  if (!suggestedKey || !caseAnswers) return null;
+  
+  // Direct key match
+  if (caseAnswers[suggestedKey] !== undefined) {
+    return { key: suggestedKey, value: caseAnswers[suggestedKey] };
+  }
+  
+  // Try case-insensitive match
+  const lowerKey = suggestedKey.toLowerCase();
+  for (const [key, value] of Object.entries(caseAnswers)) {
+    if (key.toLowerCase() === lowerKey) {
+      return { key, value };
+    }
+  }
+  
+  return null;
 }
 
 // ============================================================================
@@ -1051,73 +1385,242 @@ function getFormFields() {
 
 async function autofillForm(packet) {
   console.log('[Claimly] ══════════════════════════════════════════');
-  console.log('[Claimly] 🚀 Advanced Autofill Starting');
+  console.log('[Claimly] 🚀 Advanced Autofill Starting (LLM-First Mode)');
   console.log('[Claimly] Data keys:', Object.keys(packet.userData || {}));
+  console.log('[Claimly] CaseAnswer keys:', Object.keys(packet.caseAnswers || {}));
   
   claimPacket = packet;
   filledFields = [];
   pendingFields = [];
   lowConfidenceFields = [];
+  userQuestionFields = [];
+  fileUploadFields = [];
+  caseAnswerFields = [];
   
-  const fields = getFormFields();
+  const rawFields = getFormFields();
+  const fields = rawFields.map((f, i) => ({ element: f, index: i }));
   console.log(`[Claimly] Found ${fields.length} fields`);
   console.log('[Claimly] ──────────────────────────────────────────');
   
-  for (const field of fields) {
-    const match = matchFieldTiered(field);
+  // ========================================================================
+  // STEP 1: LLM TRIAGE - Classify all fields first
+  // ========================================================================
+  let classifications = [];
+  let triageMethod = 'none';
+  
+  if (USE_LLM_TRIAGE && fields.length > 0) {
+    const triageResult = await triageFieldsViaLLM(fields, packet);
+    classifications = triageResult.classifications || [];
+    triageMethod = triageResult.method || 'unknown';
+    console.log(`[Claimly] 🤖 Triage method: ${triageMethod}`);
+  }
+  
+  // Build a map of fieldId -> classification
+  const classificationMap = new Map();
+  for (const c of classifications) {
+    classificationMap.set(c.fieldId, c);
+  }
+  
+  // ========================================================================
+  // STEP 2: Process each field based on its classification
+  // ========================================================================
+  for (const { element: field, index } of fields) {
+    const fieldId = field.id || field.name || `field_${index}`;
+    const { text: labelText } = computeAccessibleName(field);
+    const description = getDescriptionText(field);
     
-    if (match) {
-      const value = getNestedValue(packet.userData, match.key);
+    // Get classification from LLM or use local fallback
+    let classification = classificationMap.get(fieldId);
+    if (!classification) {
+      classification = classifyFieldLocally(field, labelText, description);
+      classification.fieldId = fieldId;
+      console.log(`[Claimly] 📝 Local fallback classification for "${labelText}":`, classification.category);
+    }
+    
+    console.log(`[Claimly] 🔍 Field: "${labelText.substring(0, 40)}" → ${classification.category}`);
+    
+    switch (classification.category) {
+      case 'STANDARD_PROFILE': {
+        // Run Tier 0-3 matching ONLY for standard profile fields
+        const match = matchFieldTiered(field);
+        
+        if (match) {
+          const value = getNestedValue(packet.userData, match.key);
+          
+          if (value != null && value !== '') {
+            if (validateAndFill(field, value, match.key)) {
+              field.classList.add('claimly-filled');
+              
+              const record = { 
+                field, 
+                key: match.key, 
+                value, 
+                tier: match.tier, 
+                confidence: match.confidence,
+                category: 'STANDARD_PROFILE'
+              };
+              
+              filledFields.push(record);
+              
+              if (match.confidence < CONFIDENCE_THRESHOLD) {
+                lowConfidenceFields.push(record);
+                field.classList.add('claimly-low-confidence');
+              }
+              
+              console.log(`[Claimly]   ✅ Filled: ${match.key} (confidence: ${match.confidence.toFixed(2)})`);
+            } else {
+              pendingFields.push({ field, key: match.key, reason: 'validation_failed' });
+              field.classList.add('claimly-needs-attention');
+            }
+          } else {
+            pendingFields.push({ field, key: match.key, reason: 'no_value' });
+            field.classList.add('claimly-needs-attention');
+          }
+        } else if (field.required || field.getAttribute('aria-required') === 'true') {
+          pendingFields.push({ field, key: null, reason: 'no_tier_match' });
+          field.classList.add('claimly-needs-attention');
+        }
+        break;
+      }
       
-      if (value != null && value !== '') {
-        if (validateAndFill(field, value, match.key)) {
+      case 'CASE_ANSWER':
+      case 'CONTEXTUAL_DATA': {
+        // Try to match against caseAnswers
+        const caseMatch = matchCaseAnswer(classification.suggestedKey, packet.caseAnswers);
+        
+        if (caseMatch && caseMatch.value != null && caseMatch.value !== '') {
+          // Fill from caseAnswers
+          const value = caseMatch.value;
+          field.value = String(value);
+          field.dispatchEvent(new Event('input', { bubbles: true }));
+          field.dispatchEvent(new Event('change', { bubbles: true }));
           field.classList.add('claimly-filled');
           
-          const record = { 
-            field, 
-            key: match.key, 
-            value, 
-            tier: match.tier, 
-            confidence: match.confidence 
+          const record = {
+            field,
+            key: caseMatch.key,
+            value,
+            confidence: classification.confidence || 0.8,
+            category: classification.category,
+            source: 'caseAnswers'
           };
           
           filledFields.push(record);
-          
-          // Track low confidence for review
-          if (match.confidence < CONFIDENCE_THRESHOLD) {
-            lowConfidenceFields.push(record);
-            field.classList.add('claimly-low-confidence');
-          }
-          
-          console.log(`[Claimly]   ✅ Filled: ${match.key} (confidence: ${match.confidence.toFixed(2)})`);
+          caseAnswerFields.push(record);
+          console.log(`[Claimly]   ✅ Filled from caseAnswers: ${caseMatch.key}`);
         } else {
-          pendingFields.push({ field, key: match.key, reason: 'validation_failed' });
+          // No match - queue for user input
+          userQuestionFields.push({
+            field,
+            fieldId,
+            label: labelText,
+            category: classification.category,
+            promptForUser: classification.promptForUser || labelText,
+            suggestedKey: classification.suggestedKey,
+            required: field.required || field.getAttribute('aria-required') === 'true',
+          });
           field.classList.add('claimly-needs-attention');
+          console.log(`[Claimly]   ❓ Queued for user input: "${labelText}"`);
         }
-      } else {
-        pendingFields.push({ field, key: match.key, reason: 'no_value' });
-        field.classList.add('claimly-needs-attention');
+        break;
       }
-    } else if (field.required || field.getAttribute('aria-required') === 'true') {
-      pendingFields.push({ field, key: null, reason: 'no_match' });
-      field.classList.add('claimly-needs-attention');
+      
+      case 'FILE_UPLOAD': {
+        fileUploadFields.push({
+          field,
+          fieldId,
+          label: labelText,
+          required: field.required || field.getAttribute('aria-required') === 'true',
+        });
+        field.classList.add('claimly-needs-attention');
+        console.log(`[Claimly]   📄 File upload detected: "${labelText}"`);
+        break;
+      }
+      
+      case 'USER_QUESTION': {
+        userQuestionFields.push({
+          field,
+          fieldId,
+          label: labelText,
+          category: 'USER_QUESTION',
+          promptForUser: classification.promptForUser || labelText,
+          required: field.required || field.getAttribute('aria-required') === 'true',
+        });
+        field.classList.add('claimly-needs-attention');
+        console.log(`[Claimly]   ❓ User question: "${labelText}"`);
+        break;
+      }
+      
+      case 'SKIP':
+      default: {
+        console.log(`[Claimly]   ⏭️ Skipped: "${labelText}" (optional/info)`);
+        break;
+      }
     }
     
     console.log('[Claimly] ──────────────────────────────────────────');
   }
   
+  // ========================================================================
+  // STEP 3: Duplicate Detection
+  // ========================================================================
+  const duplicates = detectDuplicateValues(filledFields);
+  if (duplicates.length > 0) {
+    console.log(`[Claimly] ⚠️ Found ${duplicates.length} fields with suspicious duplicate values`);
+    
+    // Mark duplicate fields for review
+    for (const record of duplicates) {
+      record.field.classList.add('claimly-duplicate-warning');
+      record.field.classList.remove('claimly-filled');
+      if (!lowConfidenceFields.includes(record)) {
+        lowConfidenceFields.push(record);
+      }
+    }
+    
+    // Show warning toast
+    showDuplicateWarningToast(duplicates.length);
+  }
+  
+  // ========================================================================
+  // STEP 4: Mark skipped required fields
+  // ========================================================================
+  for (const pending of pendingFields) {
+    if (pending.field && (pending.field.required || pending.field.getAttribute('aria-required') === 'true')) {
+      pending.field.classList.add('claimly-skipped');
+      pending.field.classList.remove('claimly-needs-attention');
+    }
+  }
+  
+  // ========================================================================
+  // STEP 5: Summary and UI
+  // ========================================================================
   console.log('[Claimly] ══════════════════════════════════════════');
-  console.log(`[Claimly] ✅ Done!`);
+  console.log(`[Claimly] ✅ Autofill Complete!`);
   console.log(`[Claimly]    Filled: ${filledFields.length}`);
-  console.log(`[Claimly]    Low confidence: ${lowConfidenceFields.length}`);
-  console.log(`[Claimly]    Pending: ${pendingFields.length}`);
+  console.log(`[Claimly]    From caseAnswers: ${caseAnswerFields.length}`);
+  console.log(`[Claimly]    Uncertain/Duplicates: ${lowConfidenceFields.length}`);
+  console.log(`[Claimly]    User questions: ${userQuestionFields.length}`);
+  console.log(`[Claimly]    File uploads: ${fileUploadFields.length}`);
+  console.log(`[Claimly]    Skipped: ${pendingFields.length}`);
   
   showStatusBadge();
+  
+  // Show modals if needed
+  if (fileUploadFields.length > 0) {
+    showDocumentRequestModal();
+  }
+  if (userQuestionFields.length > 0) {
+    showUserQuestionModal();
+  }
   
   return { 
     filled: filledFields.length, 
     pending: pendingFields.length,
     lowConfidence: lowConfidenceFields.length,
+    userQuestions: userQuestionFields.length,
+    fileUploads: fileUploadFields.length,
+    duplicates: duplicates.length,
+    triageMethod,
   };
 }
 
@@ -1129,6 +1632,8 @@ function showStatusBadge() {
   statusBadge?.remove();
   
   const hasLowConfidence = lowConfidenceFields.length > 0;
+  const hasUserQuestions = userQuestionFields.length > 0;
+  const hasFileUploads = fileUploadFields.length > 0;
   
   statusBadge = document.createElement('div');
   statusBadge.className = 'claimly-badge';
@@ -1141,12 +1646,15 @@ function showStatusBadge() {
     <div class="claimly-badge-stats">
       <span class="claimly-stat claimly-stat-filled">✅ ${filledFields.length} filled</span>
       ${hasLowConfidence ? `<span class="claimly-stat claimly-stat-warning">⚠️ ${lowConfidenceFields.length} uncertain</span>` : ''}
-      ${pendingFields.length > 0 ? `<span class="claimly-stat claimly-stat-pending">❓ ${pendingFields.length} skipped</span>` : ''}
+      ${hasUserQuestions ? `<span class="claimly-stat claimly-stat-pending">❓ ${userQuestionFields.length} questions</span>` : ''}
+      ${hasFileUploads ? `<span class="claimly-stat claimly-stat-pending">📄 ${fileUploadFields.length} uploads</span>` : ''}
+      ${pendingFields.length > 0 ? `<span class="claimly-stat claimly-stat-pending">⏸️ ${pendingFields.length} pending</span>` : ''}
     </div>
     <div class="claimly-badge-actions">
       <button class="claimly-btn claimly-btn-secondary" id="claimly-clear">Clear</button>
       ${hasLowConfidence ? `<button class="claimly-btn claimly-btn-warning" id="claimly-review-uncertain">Review Uncertain</button>` : ''}
-      ${pendingFields.length > 0 ? `<button class="claimly-btn claimly-btn-primary" id="claimly-review">Review Skipped</button>` : ''}
+      ${hasUserQuestions ? `<button class="claimly-btn claimly-btn-primary" id="claimly-answer-questions">Answer Questions</button>` : ''}
+      ${hasFileUploads ? `<button class="claimly-btn claimly-btn-secondary" id="claimly-show-uploads">View Uploads</button>` : ''}
     </div>
   `;
   
@@ -1165,6 +1673,12 @@ function showStatusBadge() {
     lowConfidenceFields[0]?.field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     lowConfidenceFields[0]?.field?.focus();
     showFieldConfidence(lowConfidenceFields[0]);
+  });
+  document.getElementById('claimly-answer-questions')?.addEventListener('click', () => {
+    showUserQuestionModal();
+  });
+  document.getElementById('claimly-show-uploads')?.addEventListener('click', () => {
+    showDocumentRequestModal();
   });
 }
 
@@ -1224,20 +1738,323 @@ function showFieldConfidence(record) {
 }
 
 function clearAutofill() {
+  // Remove all highlight classes from filled fields
   filledFields.forEach(({ field }) => {
     field.value = '';
-    field.classList.remove('claimly-filled', 'claimly-low-confidence');
+    field.classList.remove('claimly-filled', 'claimly-low-confidence', 'claimly-duplicate-warning');
     field.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  pendingFields.forEach(({ field }) => field?.classList.remove('claimly-needs-attention'));
   
+  // Remove highlight classes from other fields
+  pendingFields.forEach(({ field }) => field?.classList.remove('claimly-needs-attention', 'claimly-skipped'));
+  userQuestionFields.forEach(({ field }) => field?.classList.remove('claimly-needs-attention'));
+  fileUploadFields.forEach(({ field }) => field?.classList.remove('claimly-needs-attention'));
+  
+  // Also clear any remaining highlights on the page
+  document.querySelectorAll('.claimly-filled, .claimly-low-confidence, .claimly-duplicate-warning, .claimly-needs-attention, .claimly-skipped, .claimly-error').forEach(el => {
+    el.classList.remove('claimly-filled', 'claimly-low-confidence', 'claimly-duplicate-warning', 'claimly-needs-attention', 'claimly-skipped', 'claimly-error');
+  });
+  
+  // Reset state
   filledFields = [];
   pendingFields = [];
   lowConfidenceFields = [];
+  userQuestionFields = [];
+  fileUploadFields = [];
+  caseAnswerFields = [];
   
+  // Remove UI elements
   document.querySelector('.claimly-confidence-tooltip')?.remove();
+  document.querySelector('.claimly-toast')?.remove();
+  userQuestionModal?.remove();
+  userQuestionModal = null;
+  documentRequestModal?.remove();
+  documentRequestModal = null;
   statusBadge?.remove();
   statusBadge = null;
+}
+
+// ============================================================================
+// USER QUESTION MODAL
+// ============================================================================
+
+function showUserQuestionModal() {
+  if (userQuestionFields.length === 0) return;
+  
+  userQuestionModal?.remove();
+  
+  userQuestionModal = document.createElement('div');
+  userQuestionModal.className = 'claimly-modal-overlay';
+  userQuestionModal.innerHTML = `
+    <div class="claimly-modal">
+      <div class="claimly-modal-header">
+        <div class="claimly-badge-logo">C</div>
+        <span>Claimly - We need your input</span>
+        <button class="claimly-btn-close" id="claimly-modal-close">×</button>
+      </div>
+      <div class="claimly-modal-body">
+        <p class="claimly-modal-desc">Please answer the following questions to complete your claim. Be as specific as possible.</p>
+        <div class="claimly-questions-list" id="claimly-questions-list">
+          ${userQuestionFields.map((q, i) => {
+            const inputInfo = getInputGuidance(q);
+            return `
+              <div class="claimly-question-item" data-index="${i}">
+                <label class="claimly-question-label">
+                  ${i + 1}. ${escapeHtml(q.promptForUser || q.label)}
+                  ${q.required ? '<span class="claimly-required">*</span>' : ''}
+                </label>
+                ${inputInfo.hint ? `<p class="claimly-input-hint">${escapeHtml(inputInfo.hint)}</p>` : ''}
+                ${renderQuestionInput(q, i, inputInfo)}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+      <div class="claimly-modal-footer">
+        <button class="claimly-btn claimly-btn-secondary" id="claimly-questions-skip">Skip All</button>
+        <button class="claimly-btn claimly-btn-primary" id="claimly-questions-submit">Submit Answers</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(userQuestionModal);
+  
+  // Event handlers
+  document.getElementById('claimly-modal-close')?.addEventListener('click', () => {
+    userQuestionModal?.remove();
+    userQuestionModal = null;
+  });
+  
+  document.getElementById('claimly-questions-skip')?.addEventListener('click', () => {
+    userQuestionModal?.remove();
+    userQuestionModal = null;
+  });
+  
+  document.getElementById('claimly-questions-submit')?.addEventListener('click', submitUserAnswers);
+}
+
+/**
+ * Get specific input guidance based on the question type
+ */
+function getInputGuidance(question) {
+  const label = (question.label || '').toLowerCase();
+  const prompt = (question.promptForUser || '').toLowerCase();
+  const fullText = `${label} ${prompt}`;
+  
+  // Money/price fields
+  if (/price|cost|amount|fee|commission|payment|total|paid/i.test(fullText)) {
+    return {
+      type: 'money',
+      hint: 'Enter the dollar amount (e.g., $25,000 or 25000)',
+      placeholder: 'e.g., $25,000',
+    };
+  }
+  
+  // Date fields
+  if (/date|when|year/i.test(fullText) && !/birth/i.test(fullText)) {
+    return {
+      type: 'date',
+      hint: 'Enter the date (e.g., January 2023 or 01/15/2023)',
+      placeholder: 'e.g., 01/15/2023',
+    };
+  }
+  
+  // Address fields
+  if (/address/i.test(fullText)) {
+    return {
+      type: 'address',
+      hint: 'Enter the full street address',
+      placeholder: 'e.g., 123 Main St, City, State 12345',
+    };
+  }
+  
+  // Name/company fields
+  if (/brokerage|broker|agent|company|firm|name of/i.test(fullText)) {
+    return {
+      type: 'text',
+      hint: 'Enter the full name',
+      placeholder: 'e.g., ABC Realty Group',
+    };
+  }
+  
+  // Description fields
+  if (/describe|explain|detail|issue|problem/i.test(fullText)) {
+    return {
+      type: 'textarea',
+      hint: 'Provide a detailed description (2-3 sentences minimum)',
+      placeholder: 'Please describe in detail...',
+    };
+  }
+  
+  // Yes/No questions
+  if (/did you|do you|have you|were you|are you|was the|is the/i.test(fullText) || /\?/.test(fullText)) {
+    return {
+      type: 'yesno',
+      hint: null,
+      placeholder: null,
+    };
+  }
+  
+  // Default
+  return {
+    type: 'text',
+    hint: null,
+    placeholder: 'Enter your answer',
+  };
+}
+
+function renderQuestionInput(question, index, inputInfo) {
+  const fieldType = question.field?.type || 'text';
+  
+  // Yes/No questions - render radio buttons
+  if (inputInfo.type === 'yesno') {
+    return `
+      <div class="claimly-radio-group">
+        <label class="claimly-radio-option">
+          <input type="radio" name="claimly-q-${index}" value="yes"> Yes
+        </label>
+        <label class="claimly-radio-option">
+          <input type="radio" name="claimly-q-${index}" value="no"> No
+        </label>
+      </div>
+    `;
+  }
+  
+  // Textarea for descriptions
+  if (inputInfo.type === 'textarea' || fieldType === 'textarea' || /describe|explain|comments/i.test(question.label)) {
+    return `<textarea class="claimly-input claimly-textarea" id="claimly-q-${index}" rows="3" placeholder="${escapeHtml(inputInfo.placeholder || 'Enter your answer...')}"></textarea>`;
+  }
+  
+  // Money input
+  if (inputInfo.type === 'money') {
+    return `<input type="text" class="claimly-input" id="claimly-q-${index}" placeholder="${escapeHtml(inputInfo.placeholder)}" inputmode="decimal">`;
+  }
+  
+  // Date input
+  if (inputInfo.type === 'date') {
+    return `<input type="text" class="claimly-input" id="claimly-q-${index}" placeholder="${escapeHtml(inputInfo.placeholder)}">`;
+  }
+  
+  // Default: text input
+  return `<input type="text" class="claimly-input" id="claimly-q-${index}" placeholder="${escapeHtml(inputInfo.placeholder || 'Enter your answer')}">`;
+}
+
+function submitUserAnswers() {
+  const answeredCount = { filled: 0, skipped: 0 };
+  
+  userQuestionFields.forEach((q, i) => {
+    let value = null;
+    
+    // Check for radio buttons
+    const radioSelected = document.querySelector(`input[name="claimly-q-${i}"]:checked`);
+    if (radioSelected) {
+      value = radioSelected.value;
+    } else {
+      // Check for text input or textarea
+      const input = document.getElementById(`claimly-q-${i}`);
+      if (input && input.value.trim()) {
+        value = input.value.trim();
+      }
+    }
+    
+    if (value) {
+      // Fill the actual form field
+      q.field.value = value;
+      q.field.dispatchEvent(new Event('input', { bubbles: true }));
+      q.field.dispatchEvent(new Event('change', { bubbles: true }));
+      q.field.classList.remove('claimly-needs-attention');
+      q.field.classList.add('claimly-filled');
+      
+      filledFields.push({
+        field: q.field,
+        key: q.fieldId,
+        value,
+        confidence: 1.0,
+        category: 'USER_ANSWER',
+        source: 'userModal'
+      });
+      
+      answeredCount.filled++;
+    } else {
+      answeredCount.skipped++;
+    }
+  });
+  
+  console.log(`[Claimly] User answers submitted: ${answeredCount.filled} filled, ${answeredCount.skipped} skipped`);
+  
+  // Clear user question fields that were answered
+  userQuestionFields = userQuestionFields.filter((q, i) => {
+    const radioSelected = document.querySelector(`input[name="claimly-q-${i}"]:checked`);
+    const input = document.getElementById(`claimly-q-${i}`);
+    return !radioSelected && (!input || !input.value.trim());
+  });
+  
+  userQuestionModal?.remove();
+  userQuestionModal = null;
+  
+  // Update status badge
+  showStatusBadge();
+}
+
+// ============================================================================
+// DOCUMENT REQUEST MODAL
+// ============================================================================
+
+function showDocumentRequestModal() {
+  if (fileUploadFields.length === 0) return;
+  
+  documentRequestModal?.remove();
+  
+  documentRequestModal = document.createElement('div');
+  documentRequestModal.className = 'claimly-modal-overlay claimly-modal-secondary';
+  documentRequestModal.innerHTML = `
+    <div class="claimly-modal claimly-modal-sm">
+      <div class="claimly-modal-header">
+        <div class="claimly-badge-logo">C</div>
+        <span>Documents Needed</span>
+        <button class="claimly-btn-close" id="claimly-doc-close">×</button>
+      </div>
+      <div class="claimly-modal-body">
+        <p class="claimly-modal-desc">This claim form requires the following documents:</p>
+        <div class="claimly-doc-list">
+          ${fileUploadFields.map((f, i) => `
+            <div class="claimly-doc-item">
+              <span class="claimly-doc-icon">📄</span>
+              <span class="claimly-doc-label">${escapeHtml(f.label)}</span>
+              ${f.required ? '<span class="claimly-required">Required</span>' : '<span class="claimly-optional">Optional</span>'}
+            </div>
+          `).join('')}
+        </div>
+        <p class="claimly-modal-note">Please upload these documents manually using the form's file upload fields.</p>
+      </div>
+      <div class="claimly-modal-footer">
+        <button class="claimly-btn claimly-btn-primary" id="claimly-doc-ok">Got it</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(documentRequestModal);
+  
+  document.getElementById('claimly-doc-close')?.addEventListener('click', () => {
+    documentRequestModal?.remove();
+    documentRequestModal = null;
+  });
+  
+  document.getElementById('claimly-doc-ok')?.addEventListener('click', () => {
+    documentRequestModal?.remove();
+    documentRequestModal = null;
+    // Scroll to first file upload field
+    if (fileUploadFields.length > 0) {
+      fileUploadFields[0].field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      fileUploadFields[0].field?.focus();
+    }
+  });
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 // ============================================================================
