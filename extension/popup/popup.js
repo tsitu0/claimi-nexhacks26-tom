@@ -107,8 +107,18 @@ function updatePacketUI() {
         const receivedAt = activePacket._meta?.receivedAt ? 
           formatTimeAgo(new Date(activePacket._meta.receivedAt)) : 
           'unknown time';
-        elements.packetMeta.textContent = `✓ From dashboard ${receivedAt}`;
-        elements.packetMeta.style.display = 'block';
+        
+        // Build metadata HTML
+        let metaHtml = `<span class="packet-meta-source">✓ From dashboard ${receivedAt}</span>`;
+        
+        // Add claim form URL link if available
+        const claimFormUrl = activePacket.claimFormUrl || activePacket._meta?.claimFormUrl;
+        if (claimFormUrl && claimFormUrl.startsWith('http')) {
+          metaHtml += `<a href="${claimFormUrl}" target="_blank" class="packet-meta-link">📄 Open claim form</a>`;
+        }
+        
+        elements.packetMeta.innerHTML = metaHtml;
+        elements.packetMeta.style.display = 'flex';
       } else {
         elements.packetMeta.style.display = 'none';
       }

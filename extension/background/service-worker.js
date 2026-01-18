@@ -110,7 +110,11 @@ async function setClaimPacketFromDashboard(packet, sender) {
       sourceUrl: sender?.tab?.url || sender?.url || 'unknown',
       userFullName: packet.userData?.fullName || 
         `${packet.userData?.firstName || ''} ${packet.userData?.lastName || ''}`.trim() ||
-        'Unknown User'
+        'Unknown User',
+      userId: packet.userId || null,
+      claimFormUrl: packet.claimFormUrl || null,
+      answerCount: Array.isArray(packet.answerItems) ? packet.answerItems.length : 0,
+      caseAnswerCount: Object.keys(packet.caseAnswers || {}).length
     }
   };
 
@@ -123,13 +127,16 @@ async function setClaimPacketFromDashboard(packet, sender) {
   console.log('[Claimi] Claim packet stored successfully:', {
     id: enrichedPacket.id,
     settlement: enrichedPacket.settlementName,
-    user: enrichedPacket._meta.userFullName
+    user: enrichedPacket._meta.userFullName,
+    claimFormUrl: enrichedPacket._meta.claimFormUrl,
+    answers: enrichedPacket._meta.answerCount
   });
 
   return { 
     success: true, 
     packetId: enrichedPacket.id,
-    settlementName: enrichedPacket.settlementName 
+    settlementName: enrichedPacket.settlementName,
+    claimFormUrl: enrichedPacket.claimFormUrl
   };
 }
 
