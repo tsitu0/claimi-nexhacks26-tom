@@ -1,0 +1,29 @@
+{
+  "name": "claimi-logic-bot",
+  "version": "1.0.0",
+  "description": "Logic bot that parses settlement requirements into general vs specific categories",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["mcp", "settlement", "logic", "claimi"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@leanmcp/cli": "^0.4.5",
+    "@leanmcp/core": "^0.3.17",
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^9.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.43.5",
+    "dotenv": "^16.4.5",
+    "openai": "^4.47.1",
+    "uuid": "^9.0.0"
+  }
+}

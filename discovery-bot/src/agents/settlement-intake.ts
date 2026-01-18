@@ -340,7 +340,52 @@ export async function discoverSettlement(url: string, force: boolean = false): P
       console.log('⚠️  No claim form URL found');
     }
 
-    // Step 6: Check deadline validity (skip expired settlements)
+    // Step 6: Validate required fields (skip incomplete settlements)
+    console.log('✅ Validating required fields...');
+    const missingFields: string[] = [];
+    
+    // Required: Title
+    if (!parsed.title || parsed.title.trim() === '' || parsed.title === 'No Title') {
+      missingFields.push('title');
+    }
+    
+    // Required: Deadline (must know when to file)
+    if (!parsed.deadline) {
+      missingFields.push('deadline');
+    }
+    
+    // Required: Claim URL (must be able to file)
+    if (!claimUrl || claimUrl.trim() === '') {
+      missingFields.push('claim_url');
+    }
+    
+    // Required: At least one eligibility requirement
+    if (!parsed.eligibility_rules?.requirements || parsed.eligibility_rules.requirements.length === 0) {
+      missingFields.push('eligibility_requirements');
+    }
+    
+    // Required: At least one citation (for trustworthiness)
+    if (!parsed.citations || parsed.citations.length === 0) {
+      missingFields.push('citations');
+    }
+    
+    // Required: Provider/defendant name
+    if (!parsed.provider || parsed.provider === 'Unknown' || parsed.provider.trim() === '') {
+      missingFields.push('provider');
+    }
+    
+    // Reject if any required fields are missing
+    if (missingFields.length > 0) {
+      console.log(`❌ Skipping incomplete settlement: ${parsed.title || url}`);
+      console.log(`   Missing fields: ${missingFields.join(', ')}`);
+      return {
+        success: false,
+        error: `Missing required fields: ${missingFields.join(', ')}`,
+        raw_scraped: scrapedPage,
+      };
+    }
+
+    // Step 7: Check deadline validity (skip expired settlements)
     if (parsed.deadline) {
       const deadlineDate = new Date(parsed.deadline);
       const today = new Date();
@@ -358,11 +403,9 @@ export async function discoverSettlement(url: string, force: boolean = false): P
       // Calculate days remaining
       const daysRemaining = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       console.log(`📅 Deadline: ${parsed.deadline} (${daysRemaining} days remaining)`);
-    } else {
-      console.log(`⚠️  No deadline found for: ${parsed.title}`);
     }
 
-    // Step 7: Build settlement data with all extracted fields
+    // Step 9: Build settlement data with all extracted fields
     const settlement: SettlementData = {
       title: parsed.title,
       provider: parsed.provider,
@@ -372,22 +415,15 @@ export async function discoverSettlement(url: string, force: boolean = false): P
       deadline: parsed.deadline,
       eligibility_rules: parsed.eligibility_rules,
       citations: parsed.citations,
-      claim_url: claimUrl || '',
+      claim_url: claimUrl!, // We've validated this exists above
       source_url: url,
       claim_form_info: claimFormInfo,
       has_valid_form: hasValidForm,
       raw_content: scrapedPage.text.slice(0, 50000), // Store truncated raw content
-      status: 'discovered',
+      status: hasValidForm ? 'discovered' : 'no_form',
     };
 
-    // Step 8: Log form validation status (but still store regardless)
-    if (!hasValidForm) {
-      console.log(`⚠️  No valid claim form found for: ${settlement.title}`);
-      console.log(`   Reason: ${claimFormInfo?.validation_reason || 'No form URL detected'}`);
-      console.log(`   Still storing settlement for tracking...`);
-    }
-
-    // Step 9: Store in Supabase
+    // Step 10: Store in Supabase
     console.log('💾 Storing in Supabase...');
     const stored = await storeSettlement(settlement);
     
