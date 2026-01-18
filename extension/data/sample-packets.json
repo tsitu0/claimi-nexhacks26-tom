@@ -34,6 +34,13 @@
         "experiencedIssue": true,
         "issueDescription": "Device overheated and stopped working",
         "claimAmount": "full-refund"
+      },
+      "caseAnswerMeta": {
+        "ownedProduct": "owned or purchased the TechWidget product",
+        "purchasedInUS": "purchased in the United States",
+        "experiencedIssue": "experienced an issue or defect with the product",
+        "issueDescription": "description of the issue or problem experienced",
+        "claimAmount": "type of refund or claim amount requested"
       }
     },
     {
@@ -65,6 +72,14 @@
         "experiencedIdentityTheft": false,
         "experiencedFinancialLoss": true,
         "financialLossAmount": "150.00"
+      },
+      "caseAnswerMeta": {
+        "hadAccountDuringBreach": "had an account during the data breach period",
+        "breachPeriodStart": "start date of the breach period affected",
+        "breachPeriodEnd": "end date of the breach period affected",
+        "experiencedIdentityTheft": "experienced identity theft as a result",
+        "experiencedFinancialLoss": "experienced financial loss due to the breach",
+        "financialLossAmount": "amount of financial loss in dollars"
       }
     },
     {
@@ -102,6 +117,14 @@
         "vehicleRepaired": true,
         "repairCost": "1250.00",
         "hasReceipts": true
+      },
+      "caseAnswerMeta": {
+        "experiencedDefect": "experienced a defect with the vehicle",
+        "defectType": "type of defect experienced (brake system, engine, etc.)",
+        "defectDate": "date when the defect was first noticed",
+        "vehicleRepaired": "whether the vehicle was repaired",
+        "repairCost": "cost of repairs in dollars",
+        "hasReceipts": "has receipts or documentation for repairs"
       }
     }
   ],

@@ -3,6 +3,7 @@
 const CONFIG = {
   apiUrl: 'http://localhost:5171',
   llmEndpoint: '/api/autofill/map-field',
+  triageEndpoint: '/api/autofill/triage-fields',
 };
 
 // Storage keys
@@ -64,6 +65,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       tier3MapField(message.fieldInfo, message.packetKeys).then(sendResponse);
       return true;
       
+    case 'triageFields':
+      triageFields(message.fields, message.availableUserDataKeys, message.availableCaseAnswerKeys, message.caseAnswerMeta).then(sendResponse);
+      return true;
+      
     case 'triggerAutofill':
       triggerAutofillOnActiveTab(message.packet).then(sendResponse);
       return true;
@@ -115,7 +120,7 @@ async function deletePacket(packetId) {
   return { success: true };
 }
 
-// Tier 3: Call LLM API to map a field
+// Tier 3: Call LLM API to map a field (legacy)
 async function tier3MapField(fieldInfo, packetKeys) {
   try {
     const response = await fetch(`${CONFIG.apiUrl}${CONFIG.llmEndpoint}`, {
@@ -136,6 +141,37 @@ async function tier3MapField(fieldInfo, packetKeys) {
   } catch (error) {
     console.error('[Claimly] Tier 3 API error:', error);
     return null;
+  }
+}
+
+// LLM Triage: Batch classify all fields before autofill
+async function triageFields(fields, availableUserDataKeys, availableCaseAnswerKeys, caseAnswerMeta) {
+  try {
+    console.log(`[Claimly] Triaging ${fields.length} fields via LLM`);
+    
+    const response = await fetch(`${CONFIG.apiUrl}${CONFIG.triageEndpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields,
+        availableUserDataKeys,
+        availableCaseAnswerKeys,
+        caseAnswerMeta,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API request failed: ${response.status} - ${errorText}`);
+    }
+    
+    const result = await response.json();
+    console.log(`[Claimly] Triage complete. Method: ${result.method}, Fields: ${result.classifications?.length}`);
+    return result;
+  } catch (error) {
+    console.error('[Claimly] Triage API error:', error);
+    // Return empty classifications on error - content script will use local fallback
+    return { classifications: [], method: 'error', error: error.message };
   }
 }
 
