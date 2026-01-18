@@ -21,6 +21,7 @@ const initialForm = {
   legal_last_name: "",
   email: "",
   phone_number: "",
+  street_address: "",
   city: "",
   state: "",
   zip_code: "",
@@ -80,6 +81,7 @@ export default function OnboardingPage() {
             "legal_last_name",
             "email",
             "phone_number",
+            "street_address",
             "city",
             "state",
             "zip_code",
@@ -117,6 +119,7 @@ export default function OnboardingPage() {
         legal_last_name: toText(data?.legal_last_name),
         email: toText(data?.email || user.email),
         phone_number: toText(data?.phone_number),
+        street_address: toText(data?.street_address),
         city: toText(data?.city),
         state: toText(data?.state),
         zip_code: toText(data?.zip_code),
@@ -181,6 +184,7 @@ export default function OnboardingPage() {
       legal_last_name: toNull(form.legal_last_name),
       email: toNull(form.email),
       phone_number: toNull(form.phone_number),
+      street_address: toNull(form.street_address),
       city: toNull(form.city),
       state: toNull(form.state),
       zip_code: toNull(form.zip_code),
@@ -279,6 +283,17 @@ export default function OnboardingPage() {
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">Location</h3>
               <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="streetAddress">Street address</Label>
+                  <Input
+                    id="streetAddress"
+                    autoComplete="street-address"
+                    value={form.street_address}
+                    onChange={updateField("street_address")}
+                    placeholder="123 Main St"
+                    required
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
                   <Input

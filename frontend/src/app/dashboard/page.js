@@ -103,6 +103,7 @@ export default function DashboardPage() {
             "legal_last_name",
             "email",
             "phone_number",
+            "street_address",
             "city",
             "state",
             "zip_code",
@@ -165,6 +166,7 @@ export default function DashboardPage() {
         legal_last_name: profileData?.legal_last_name || "",
         email: profileData?.email || user.email || "",
         phone_number: profileData?.phone_number || "",
+        street_address: profileData?.street_address || "",
         city: profileData?.city || "",
         state: profileData?.state || "",
         zip_code: profileData?.zip_code || "",
@@ -219,7 +221,13 @@ export default function DashboardPage() {
     { label: "Phone", value: profile?.phone_number },
     {
       label: "Location",
-      value: [profile?.city, profile?.state, profile?.zip_code, profile?.country]
+      value: [
+        profile?.street_address,
+        profile?.city,
+        profile?.state,
+        profile?.zip_code,
+        profile?.country,
+      ]
         .filter(Boolean)
         .join(", "),
     },
@@ -262,6 +270,7 @@ export default function DashboardPage() {
         legal_last_name: profile?.legal_last_name || "",
         email: profile?.email || userEmail || "",
         phone_number: profile?.phone_number || "",
+        street_address: profile?.street_address || "",
         city: profile?.city || "",
         state: profile?.state || "",
         zip_code: profile?.zip_code || "",
@@ -287,6 +296,7 @@ export default function DashboardPage() {
       legal_last_name: toNull(profileForm.legal_last_name),
       email: toNull(profileForm.email),
       phone_number: toNull(profileForm.phone_number),
+      street_address: toNull(profileForm.street_address),
       city: toNull(profileForm.city),
       state: toNull(profileForm.state),
       zip_code: toNull(profileForm.zip_code),
@@ -308,6 +318,7 @@ export default function DashboardPage() {
           "legal_last_name",
           "email",
           "phone_number",
+          "street_address",
           "city",
           "state",
           "zip_code",
@@ -333,6 +344,7 @@ export default function DashboardPage() {
       legal_last_name: mergedProfile?.legal_last_name || "",
       email: mergedProfile?.email || userEmail || "",
       phone_number: mergedProfile?.phone_number || "",
+      street_address: mergedProfile?.street_address || "",
       city: mergedProfile?.city || "",
       state: mergedProfile?.state || "",
       zip_code: mergedProfile?.zip_code || "",
@@ -386,6 +398,7 @@ export default function DashboardPage() {
         email: profile.email || userEmail || "",
         phone: profile.phone_number || "",
         address: {
+          street: profile.street_address || "",
           city: profile.city || "",
           state: profile.state || "",
           zip: profile.zip_code || "",
@@ -803,6 +816,14 @@ export default function DashboardPage() {
                         id="phoneNumber"
                         value={profileForm.phone_number}
                         onChange={updateProfileField("phone_number")}
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="streetAddress">Street address</Label>
+                      <Input
+                        id="streetAddress"
+                        value={profileForm.street_address}
+                        onChange={updateProfileField("street_address")}
                       />
                     </div>
                     <div className="space-y-2">
