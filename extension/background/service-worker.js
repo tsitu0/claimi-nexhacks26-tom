@@ -15,7 +15,7 @@ const STORAGE_KEYS = {
 
 // Initialize on install
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[Claimly] Extension installed');
+  console.log('[Claimi] Extension installed');
   
   // Set default storage
   chrome.storage.local.set({
@@ -32,7 +32,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: 'claimly-autofill',
-      title: 'Autofill with Claimly',
+      title: 'Autofill with Claimi',
       contexts: ['page', 'editable'],
     });
   });
@@ -47,6 +47,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
     case 'setActivePacket':
       setActivePacket(message.packet).then(sendResponse);
+      return true;
+    
+    // Handle claim packet from dashboard bridge
+    case 'setClaimPacket':
+      setClaimPacketFromDashboard(message.packet, sender).then(sendResponse);
       return true;
       
     case 'getAllPackets':
@@ -85,6 +90,47 @@ async function getActivePacket() {
 async function setActivePacket(packet) {
   await chrome.storage.local.set({ [STORAGE_KEYS.activePacket]: packet });
   return { success: true };
+}
+
+// Handle claim packet received from dashboard bridge
+async function setClaimPacketFromDashboard(packet, sender) {
+  console.log('[Claimi] Received claim packet from dashboard');
+  
+  if (!packet || !packet.userData) {
+    console.error('[Claimi] Invalid packet from dashboard:', packet);
+    return { success: false, error: 'Invalid packet: missing userData' };
+  }
+
+  // Add metadata about when and where the packet came from
+  const enrichedPacket = {
+    ...packet,
+    _meta: {
+      source: 'dashboard',
+      receivedAt: new Date().toISOString(),
+      sourceUrl: sender?.tab?.url || sender?.url || 'unknown',
+      userFullName: packet.userData?.fullName || 
+        `${packet.userData?.firstName || ''} ${packet.userData?.lastName || ''}`.trim() ||
+        'Unknown User'
+    }
+  };
+
+  // Set as active packet
+  await chrome.storage.local.set({ [STORAGE_KEYS.activePacket]: enrichedPacket });
+  
+  // Also save to packets list for history
+  await savePacket(enrichedPacket);
+
+  console.log('[Claimi] Claim packet stored successfully:', {
+    id: enrichedPacket.id,
+    settlement: enrichedPacket.settlementName,
+    user: enrichedPacket._meta.userFullName
+  });
+
+  return { 
+    success: true, 
+    packetId: enrichedPacket.id,
+    settlementName: enrichedPacket.settlementName 
+  };
 }
 
 // Get all saved packets
@@ -139,7 +185,7 @@ async function tier3MapField(fieldInfo, packetKeys) {
     const result = await response.json();
     return result.mappedKey || null;
   } catch (error) {
-    console.error('[Claimly] Tier 3 API error:', error);
+    console.error('[Claimi] Tier 3 API error:', error);
     return null;
   }
 }
@@ -147,7 +193,7 @@ async function tier3MapField(fieldInfo, packetKeys) {
 // LLM Triage: Batch classify all fields before autofill
 async function triageFields(fields, availableUserDataKeys, availableCaseAnswerKeys, caseAnswerMeta) {
   try {
-    console.log(`[Claimly] Triaging ${fields.length} fields via LLM`);
+    console.log(`[Claimi] Triaging ${fields.length} fields via LLM`);
     
     const response = await fetch(`${CONFIG.apiUrl}${CONFIG.triageEndpoint}`, {
       method: 'POST',
@@ -166,10 +212,10 @@ async function triageFields(fields, availableUserDataKeys, availableCaseAnswerKe
     }
     
     const result = await response.json();
-    console.log(`[Claimly] Triage complete. Method: ${result.method}, Fields: ${result.classifications?.length}`);
+    console.log(`[Claimi] Triage complete. Method: ${result.method}, Fields: ${result.classifications?.length}`);
     return result;
   } catch (error) {
-    console.error('[Claimly] Triage API error:', error);
+    console.error('[Claimi] Triage API error:', error);
     // Return empty classifications on error - content script will use local fallback
     return { classifications: [], method: 'error', error: error.message };
   }
@@ -190,7 +236,7 @@ async function triggerAutofillOnActiveTab(packet) {
     });
     return response;
   } catch (error) {
-    console.error('[Claimly] Error sending autofill message:', error);
+    console.error('[Claimi] Error sending autofill message:', error);
     return { error: error.message };
   }
 }
@@ -208,4 +254,4 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-console.log('[Claimly] Service worker loaded');
+console.log('[Claimi] Service worker loaded');

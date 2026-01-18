@@ -130,7 +130,7 @@
   ],
   "schema": {
     "version": "1.0.0",
-    "description": "Claimly Claim Packet Schema",
+    "description": "Claimi Claim Packet Schema",
     "requiredFields": ["id", "settlementName", "userData"],
     "userData": {
       "personalInfo": ["firstName", "lastName", "fullName", "email", "phone", "dateOfBirth"],

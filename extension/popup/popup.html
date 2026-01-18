@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Claimly Autofill</title>
+  <title>Claimi Autofill</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
       <div class="logo">
         <div class="logo-icon">C</div>
         <div class="logo-text">
-          <h1>Claimly</h1>
+          <h1>Claimi</h1>
           <span>Autofill Agent</span>
         </div>
       </div>
@@ -38,8 +38,9 @@
         <div class="packet-card" id="packet-card">
           <div class="packet-empty" id="packet-empty">
             <span class="packet-empty-icon">📋</span>
-            <span>No packet loaded</span>
-            <button class="btn btn-sm" id="load-sample">Load Sample</button>
+            <span class="packet-empty-text">No claim packet loaded</span>
+            <span class="packet-empty-hint">Go to the Claimi dashboard to prepare a claim</span>
+            <button class="btn btn-sm" id="load-sample">How to Load</button>
           </div>
           <div class="packet-info" id="packet-info" style="display: none;">
             <div class="packet-header">
@@ -50,6 +51,7 @@
               <span id="packet-user"></span>
               <span id="packet-fields"></span>
             </div>
+            <div class="packet-meta" id="packet-meta"></div>
           </div>
         </div>
       </section>

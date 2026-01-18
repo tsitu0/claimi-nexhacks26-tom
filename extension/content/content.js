@@ -1,5 +1,5 @@
 /**
- * Claimly Autofill Agent - Advanced Content Script
+ * Claimi Autofill Agent - Advanced Content Script
  * 
  * Implements sophisticated field matching with:
  * 1. Accessible Name Computation (ARIA spec)
@@ -207,26 +207,26 @@ const FIELD_SCHEMAS = {
     },
     validator: (value) => {
       const phoneStr = String(value);
-      console.log('[Claimly] Phone validator called with:', phoneStr);
+      console.log('[Claimi] Phone validator called with:', phoneStr);
       
       // Check if libphonenumber is available and has the function
       if (typeof libphonenumber !== 'undefined' && typeof libphonenumber.isValidPhoneNumber === 'function') {
         try {
           const result = libphonenumber.isValidPhoneNumber(phoneStr, 'US');
-          console.log('[Claimly] libphonenumber result:', result);
+          console.log('[Claimi] libphonenumber result:', result);
           return result;
         } catch (e) {
-          console.log('[Claimly] libphonenumber error:', e.message);
+          console.log('[Claimi] libphonenumber error:', e.message);
           // Fall through to basic check
         }
       } else {
-        console.log('[Claimly] libphonenumber not available, using basic check');
+        console.log('[Claimi] libphonenumber not available, using basic check');
       }
       
       // Fallback: basic digit check
       const digits = phoneStr.replace(/\D/g, '');
       const isValid = digits.length >= 7 && digits.length <= 15;
-      console.log('[Claimly] Basic check - digits:', digits.length, 'valid:', isValid);
+      console.log('[Claimi] Basic check - digits:', digits.length, 'valid:', isValid);
       return isValid;
     },
   },
@@ -574,7 +574,7 @@ function initializeSearchIndices() {
       useExtendedSearch: true,
     });
     
-    console.log(`[Claimly] Fuse.js initialized with ${fuseItems.length} terms`);
+    console.log(`[Claimi] Fuse.js initialized with ${fuseItems.length} terms`);
   }
   
   // MiniSearch for BM25 ranking on long text
@@ -600,7 +600,7 @@ function initializeSearchIndices() {
       }
     }
     
-    console.log(`[Claimly] MiniSearch initialized with ${docId} documents`);
+    console.log(`[Claimi] MiniSearch initialized with ${docId} documents`);
   }
 }
 
@@ -664,26 +664,26 @@ function hasNegativeEvidence(fieldKey, semantics, labelText, descriptionText) {
   // Check negative keywords
   for (const keyword of neg.keywords || []) {
     if (fullText.includes(keyword.toLowerCase())) {
-      console.log(`[Claimly]     ⛔ Negative keyword: "${keyword}"`);
+      console.log(`[Claimi]     ⛔ Negative keyword: "${keyword}"`);
       return true;
     }
   }
   
   // Check negative autocomplete
   if (neg.autocomplete?.includes(semantics.autocomplete)) {
-    console.log(`[Claimly]     ⛔ Negative autocomplete: "${semantics.autocomplete}"`);
+    console.log(`[Claimi]     ⛔ Negative autocomplete: "${semantics.autocomplete}"`);
     return true;
   }
   
   // Check negative types
   if (neg.types?.includes(semantics.type)) {
-    console.log(`[Claimly]     ⛔ Negative type: "${semantics.type}"`);
+    console.log(`[Claimi]     ⛔ Negative type: "${semantics.type}"`);
     return true;
   }
   
   // Check inputmode
   if (neg.inputmodes?.includes(semantics.inputmode)) {
-    console.log(`[Claimly]     ⛔ Negative inputmode: "${semantics.inputmode}"`);
+    console.log(`[Claimi]     ⛔ Negative inputmode: "${semantics.inputmode}"`);
     return true;
   }
   
@@ -691,7 +691,7 @@ function hasNegativeEvidence(fieldKey, semantics, labelText, descriptionText) {
   if (fieldKey === 'phone' && neg.hasMinMax) {
     if (semantics.min !== null || semantics.max !== null) {
       if (parseFloat(semantics.max) < 100) { // Likely a count field
-        console.log(`[Claimly]     ⛔ Has min/max suggesting count field`);
+        console.log(`[Claimi]     ⛔ Has min/max suggesting count field`);
         return true;
       }
     }
@@ -711,7 +711,7 @@ function matchFieldTiered(field) {
   const normalizedLabel = normalizeText(labelText);
   const fullContext = `${labelText} ${descriptionText}`;
   
-  console.log('[Claimly] 🔍 Field:', {
+  console.log('[Claimi] 🔍 Field:', {
     id: semantics.id,
     name: semantics.name,
     type: semantics.type,
@@ -722,7 +722,7 @@ function matchFieldTiered(field) {
   
   // Skip question-like fields
   if (isQuestionField(fullContext)) {
-    console.log('[Claimly]   ⏭️ Skipped: question field');
+    console.log('[Claimi]   ⏭️ Skipped: question field');
     return null;
   }
   
@@ -736,7 +736,7 @@ function matchFieldTiered(field) {
     if (schema.positiveSignals.autocomplete.includes(semantics.autocomplete)) {
       if (!hasNegativeEvidence(key, semantics, labelText, descriptionText)) {
         const score = 1.0;
-        console.log(`[Claimly]   ✅ T0: autocomplete="${semantics.autocomplete}" → ${key} (${score.toFixed(2)})`);
+        console.log(`[Claimi]   ✅ T0: autocomplete="${semantics.autocomplete}" → ${key} (${score.toFixed(2)})`);
         return { key, tier: 0, confidence: score };
       }
     }
@@ -755,7 +755,7 @@ function matchFieldTiered(field) {
   }
   
   if (bestTier === 0 && bestScore >= 0.9) {
-    console.log(`[Claimly]   ✅ T0: type="${semantics.type}" → ${bestMatch} (${bestScore.toFixed(2)})`);
+    console.log(`[Claimi]   ✅ T0: type="${semantics.type}" → ${bestMatch} (${bestScore.toFixed(2)})`);
     return { key: bestMatch, tier: 0, confidence: bestScore };
   }
   
@@ -778,7 +778,7 @@ function matchFieldTiered(field) {
   }
   
   if (bestTier === 1 && bestScore >= 0.8) {
-    console.log(`[Claimly]   ✅ T1: pattern match → ${bestMatch} (${bestScore.toFixed(2)})`);
+    console.log(`[Claimi]   ✅ T1: pattern match → ${bestMatch} (${bestScore.toFixed(2)})`);
     return { key: bestMatch, tier: 1, confidence: bestScore };
   }
   
@@ -843,7 +843,7 @@ function matchFieldTiered(field) {
   // Special handling: if label contains "line 2" or "address 2", it's address.unit
   if (/line\s*2|address\s*2|addr\s*2/i.test(labelText)) {
     if (!hasNegativeEvidence('address.unit', semantics, labelText, descriptionText)) {
-      console.log(`[Claimly]   ✅ T1.5: "line 2/address 2" pattern → address.unit (0.95)`);
+      console.log(`[Claimi]   ✅ T1.5: "line 2/address 2" pattern → address.unit (0.95)`);
       return { key: 'address.unit', tier: 1.5, confidence: 0.95 };
     }
   }
@@ -852,7 +852,7 @@ function matchFieldTiered(field) {
     const key = exactLabelMatches[labelLower];
     if (!hasNegativeEvidence(key, semantics, labelText, descriptionText)) {
       const score = 0.9;
-      console.log(`[Claimly]   ✅ T1.5: exact label "${labelLower}" → ${key} (${score.toFixed(2)})`);
+      console.log(`[Claimi]   ✅ T1.5: exact label "${labelLower}" → ${key} (${score.toFixed(2)})`);
       return { key, tier: 1.5, confidence: score };
     }
   }
@@ -909,7 +909,7 @@ function matchFieldTiered(field) {
   }
   
   if (bestTier === 2 && bestScore >= 0.6) {
-    console.log(`[Claimly]   ✅ T2: fuzzy match → ${bestMatch} (${bestScore.toFixed(2)})`);
+    console.log(`[Claimi]   ✅ T2: fuzzy match → ${bestMatch} (${bestScore.toFixed(2)})`);
     return { key: bestMatch, tier: 2, confidence: bestScore };
   }
   
@@ -939,11 +939,11 @@ function matchFieldTiered(field) {
   }
   
   if (bestTier === 3 && bestScore >= 0.5) {
-    console.log(`[Claimly]   ⚠️ T3: keyword fallback → ${bestMatch} (${bestScore.toFixed(2)})`);
+    console.log(`[Claimi]   ⚠️ T3: keyword fallback → ${bestMatch} (${bestScore.toFixed(2)})`);
     return { key: bestMatch, tier: 3, confidence: bestScore };
   }
   
-  console.log('[Claimly]   ❌ No match');
+  console.log('[Claimi]   ❌ No match');
   return null;
 }
 
@@ -983,7 +983,7 @@ function validateAndFill(field, value, fieldKey) {
   
   // Run validator
   if (schema.validator && !schema.validator(value)) {
-    console.log(`[Claimly]   ⛔ Validation failed for ${fieldKey}`);
+    console.log(`[Claimi]   ⛔ Validation failed for ${fieldKey}`);
     return false;
   }
   
@@ -1028,7 +1028,7 @@ function validateAndFill(field, value, fieldKey) {
     
     return true;
   } catch (err) {
-    console.error('[Claimly]   ❌ Fill error:', err);
+    console.error('[Claimi]   ❌ Fill error:', err);
     return false;
   }
 }
@@ -1121,7 +1121,7 @@ function getFormFields() {
  */
 function rescanFormFields() {
   const newFields = getFormFields();
-  console.log(`[Claimly] Rescan found ${newFields.length} fields`);
+  console.log(`[Claimi] Rescan found ${newFields.length} fields`);
   return newFields;
 }
 
@@ -1163,10 +1163,10 @@ async function triageFieldsViaLLM(fields, packet) {
   const availableCaseAnswerKeys = extractCaseAnswerKeys(packet.caseAnswers);
   const caseAnswerMeta = packet.caseAnswerMeta || {};
   
-  console.log('[Claimly] 🤖 Sending fields to LLM triage...');
-  console.log('[Claimly]    Fields:', fields.length);
-  console.log('[Claimly]    UserData keys:', availableUserDataKeys);
-  console.log('[Claimly]    CaseAnswer keys:', availableCaseAnswerKeys);
+  console.log('[Claimi] 🤖 Sending fields to LLM triage...');
+  console.log('[Claimi]    Fields:', fields.length);
+  console.log('[Claimi]    UserData keys:', availableUserDataKeys);
+  console.log('[Claimi]    CaseAnswer keys:', availableCaseAnswerKeys);
   
   try {
     const response = await chrome.runtime.sendMessage({
@@ -1188,10 +1188,10 @@ async function triageFieldsViaLLM(fields, packet) {
       caseAnswerMeta,
     });
     
-    console.log('[Claimly] 🤖 Triage response:', response);
+    console.log('[Claimi] 🤖 Triage response:', response);
     return response;
   } catch (error) {
-    console.error('[Claimly] 🤖 Triage error:', error);
+    console.error('[Claimi] 🤖 Triage error:', error);
     return { classifications: [], method: 'error', error: error.message };
   }
 }
@@ -1323,7 +1323,7 @@ function detectDuplicateValues(filledFields) {
       // If the labels are different, this is suspicious
       const uniqueLabels = new Set(labels);
       if (uniqueLabels.size >= 2) {
-        console.log(`[Claimly] ⚠️ Duplicate value "${value}" in ${records.length} different fields:`, labels);
+        console.log(`[Claimi] ⚠️ Duplicate value "${value}" in ${records.length} different fields:`, labels);
         suspiciousDuplicates.push(...records);
       }
     }
@@ -1384,10 +1384,10 @@ function matchCaseAnswer(suggestedKey, caseAnswers) {
 // ============================================================================
 
 async function autofillForm(packet) {
-  console.log('[Claimly] ══════════════════════════════════════════');
-  console.log('[Claimly] 🚀 Advanced Autofill Starting (LLM-First Mode)');
-  console.log('[Claimly] Data keys:', Object.keys(packet.userData || {}));
-  console.log('[Claimly] CaseAnswer keys:', Object.keys(packet.caseAnswers || {}));
+  console.log('[Claimi] ══════════════════════════════════════════');
+  console.log('[Claimi] 🚀 Advanced Autofill Starting (LLM-First Mode)');
+  console.log('[Claimi] Data keys:', Object.keys(packet.userData || {}));
+  console.log('[Claimi] CaseAnswer keys:', Object.keys(packet.caseAnswers || {}));
   
   claimPacket = packet;
   filledFields = [];
@@ -1399,8 +1399,8 @@ async function autofillForm(packet) {
   
   const rawFields = getFormFields();
   const fields = rawFields.map((f, i) => ({ element: f, index: i }));
-  console.log(`[Claimly] Found ${fields.length} fields`);
-  console.log('[Claimly] ──────────────────────────────────────────');
+  console.log(`[Claimi] Found ${fields.length} fields`);
+  console.log('[Claimi] ──────────────────────────────────────────');
   
   // ========================================================================
   // STEP 1: LLM TRIAGE - Classify all fields first
@@ -1412,7 +1412,7 @@ async function autofillForm(packet) {
     const triageResult = await triageFieldsViaLLM(fields, packet);
     classifications = triageResult.classifications || [];
     triageMethod = triageResult.method || 'unknown';
-    console.log(`[Claimly] 🤖 Triage method: ${triageMethod}`);
+    console.log(`[Claimi] 🤖 Triage method: ${triageMethod}`);
   }
   
   // Build a map of fieldId -> classification
@@ -1434,10 +1434,10 @@ async function autofillForm(packet) {
     if (!classification) {
       classification = classifyFieldLocally(field, labelText, description);
       classification.fieldId = fieldId;
-      console.log(`[Claimly] 📝 Local fallback classification for "${labelText}":`, classification.category);
+      console.log(`[Claimi] 📝 Local fallback classification for "${labelText}":`, classification.category);
     }
     
-    console.log(`[Claimly] 🔍 Field: "${labelText.substring(0, 40)}" → ${classification.category}`);
+    console.log(`[Claimi] 🔍 Field: "${labelText.substring(0, 40)}" → ${classification.category}`);
     
     switch (classification.category) {
       case 'STANDARD_PROFILE': {
@@ -1467,7 +1467,7 @@ async function autofillForm(packet) {
                 field.classList.add('claimly-low-confidence');
               }
               
-              console.log(`[Claimly]   ✅ Filled: ${match.key} (confidence: ${match.confidence.toFixed(2)})`);
+              console.log(`[Claimi]   ✅ Filled: ${match.key} (confidence: ${match.confidence.toFixed(2)})`);
             } else {
               pendingFields.push({ field, key: match.key, reason: 'validation_failed' });
               field.classList.add('claimly-needs-attention');
@@ -1507,7 +1507,7 @@ async function autofillForm(packet) {
           
           filledFields.push(record);
           caseAnswerFields.push(record);
-          console.log(`[Claimly]   ✅ Filled from caseAnswers: ${caseMatch.key}`);
+          console.log(`[Claimi]   ✅ Filled from caseAnswers: ${caseMatch.key}`);
         } else {
           // No match - queue for user input
           userQuestionFields.push({
@@ -1520,7 +1520,7 @@ async function autofillForm(packet) {
             required: field.required || field.getAttribute('aria-required') === 'true',
           });
           field.classList.add('claimly-needs-attention');
-          console.log(`[Claimly]   ❓ Queued for user input: "${labelText}"`);
+          console.log(`[Claimi]   ❓ Queued for user input: "${labelText}"`);
         }
         break;
       }
@@ -1533,7 +1533,7 @@ async function autofillForm(packet) {
           required: field.required || field.getAttribute('aria-required') === 'true',
         });
         field.classList.add('claimly-needs-attention');
-        console.log(`[Claimly]   📄 File upload detected: "${labelText}"`);
+        console.log(`[Claimi]   📄 File upload detected: "${labelText}"`);
         break;
       }
       
@@ -1547,18 +1547,18 @@ async function autofillForm(packet) {
           required: field.required || field.getAttribute('aria-required') === 'true',
         });
         field.classList.add('claimly-needs-attention');
-        console.log(`[Claimly]   ❓ User question: "${labelText}"`);
+        console.log(`[Claimi]   ❓ User question: "${labelText}"`);
         break;
       }
       
       case 'SKIP':
       default: {
-        console.log(`[Claimly]   ⏭️ Skipped: "${labelText}" (optional/info)`);
+        console.log(`[Claimi]   ⏭️ Skipped: "${labelText}" (optional/info)`);
         break;
       }
     }
     
-    console.log('[Claimly] ──────────────────────────────────────────');
+    console.log('[Claimi] ──────────────────────────────────────────');
   }
   
   // ========================================================================
@@ -1566,7 +1566,7 @@ async function autofillForm(packet) {
   // ========================================================================
   const duplicates = detectDuplicateValues(filledFields);
   if (duplicates.length > 0) {
-    console.log(`[Claimly] ⚠️ Found ${duplicates.length} fields with suspicious duplicate values`);
+    console.log(`[Claimi] ⚠️ Found ${duplicates.length} fields with suspicious duplicate values`);
     
     // Mark duplicate fields for review
     for (const record of duplicates) {
@@ -1594,14 +1594,14 @@ async function autofillForm(packet) {
   // ========================================================================
   // STEP 5: Summary and UI
   // ========================================================================
-  console.log('[Claimly] ══════════════════════════════════════════');
-  console.log(`[Claimly] ✅ Autofill Complete!`);
-  console.log(`[Claimly]    Filled: ${filledFields.length}`);
-  console.log(`[Claimly]    From caseAnswers: ${caseAnswerFields.length}`);
-  console.log(`[Claimly]    Uncertain/Duplicates: ${lowConfidenceFields.length}`);
-  console.log(`[Claimly]    User questions: ${userQuestionFields.length}`);
-  console.log(`[Claimly]    File uploads: ${fileUploadFields.length}`);
-  console.log(`[Claimly]    Skipped: ${pendingFields.length}`);
+  console.log('[Claimi] ══════════════════════════════════════════');
+  console.log(`[Claimi] ✅ Autofill Complete!`);
+  console.log(`[Claimi]    Filled: ${filledFields.length}`);
+  console.log(`[Claimi]    From caseAnswers: ${caseAnswerFields.length}`);
+  console.log(`[Claimi]    Uncertain/Duplicates: ${lowConfidenceFields.length}`);
+  console.log(`[Claimi]    User questions: ${userQuestionFields.length}`);
+  console.log(`[Claimi]    File uploads: ${fileUploadFields.length}`);
+  console.log(`[Claimi]    Skipped: ${pendingFields.length}`);
   
   showStatusBadge();
   
@@ -1641,7 +1641,7 @@ function showStatusBadge() {
     <button class="claimly-btn-close" id="claimly-close">×</button>
     <div class="claimly-badge-header">
       <div class="claimly-badge-logo">C</div>
-      <span>Claimly</span>
+      <span>Claimi</span>
     </div>
     <div class="claimly-badge-stats">
       <span class="claimly-stat claimly-stat-filled">✅ ${filledFields.length} filled</span>
@@ -1789,7 +1789,7 @@ function showUserQuestionModal() {
     <div class="claimly-modal">
       <div class="claimly-modal-header">
         <div class="claimly-badge-logo">C</div>
-        <span>Claimly - We need your input</span>
+        <span>Claimi - We need your input</span>
         <button class="claimly-btn-close" id="claimly-modal-close">×</button>
       </div>
       <div class="claimly-modal-body">
@@ -1980,7 +1980,7 @@ function submitUserAnswers() {
     }
   });
   
-  console.log(`[Claimly] User answers submitted: ${answeredCount.filled} filled, ${answeredCount.skipped} skipped`);
+  console.log(`[Claimi] User answers submitted: ${answeredCount.filled} filled, ${answeredCount.skipped} skipped`);
   
   // Clear user question fields that were answered
   userQuestionFields = userQuestionFields.filter((q, i) => {
@@ -2062,13 +2062,13 @@ function escapeHtml(text) {
 // ============================================================================
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  console.log('[Claimly] Message:', msg.action);
+  console.log('[Claimi] Message:', msg.action);
   
   if (msg.action === 'autofill') {
     autofillForm(msg.claimPacket)
       .then(sendResponse)
       .catch(e => {
-        console.error('[Claimly] Error:', e);
+        console.error('[Claimi] Error:', e);
         sendResponse({ error: e.message, filled: 0, pending: 0, lowConfidence: 0 });
       });
     return true;
@@ -2113,4 +2113,4 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // ============================================================================
 
 initializeSearchIndices();
-console.log('[Claimly] ✅ Advanced Autofill Agent ready!');
+console.log('[Claimi] ✅ Advanced Autofill Agent ready!');
