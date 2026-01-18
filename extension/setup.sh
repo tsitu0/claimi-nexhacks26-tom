@@ -1,7 +1,7 @@
 #!/bin/bash
-# Claimly Extension Setup Script
+# Claimi Extension Setup Script
 
-echo "🚀 Setting up Claimly Autofill Extension..."
+echo "🚀 Setting up Claimi Autofill Extension..."
 
 # Create directories
 mkdir -p lib icons

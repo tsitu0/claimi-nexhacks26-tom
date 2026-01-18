@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Claimly Autofill Agent",
+  "name": "Claimi Autofill Agent",
   "version": "1.0.0",
   "description": "AI-powered autofill for class action settlement forms",
   "permissions": [
@@ -40,6 +40,15 @@
         "content/content.js"
       ],
       "css": ["content/content.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://localhost:3000/*",
+        "https://claimi.app/*",
+        "https://*.claimi.app/*"
+      ],
+      "js": ["content/dashboard-bridge.js"],
       "run_at": "document_idle"
     }
   ]

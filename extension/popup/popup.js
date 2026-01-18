@@ -1,42 +1,10 @@
 /**
- * Claimly Autofill Agent - Popup Script
+ * Claimi Autofill Agent - Popup Script
+ * 
+ * Claim packets are now loaded from the Claimi dashboard.
+ * Users must log in at the dashboard, select a settlement,
+ * and click "Prepare claim for autofill" to send data to this extension.
  */
-
-// Sample claim packet for testing
-const SAMPLE_CLAIM_PACKET = {
-  id: 'sample-packet-001',
-  settlementName: 'Tech Product Settlement 2024',
-  settlementUrl: 'https://example-settlement.com',
-  userData: {
-    firstName: 'John',
-    lastName: 'Doe',
-    fullName: 'John Doe',
-    email: 'john.doe@email.com',
-    phone: '415-555-0123',
-    dateOfBirth: '1990-05-15',
-    address: {
-      street: '123 Main Street',
-      unit: 'Apt 4B',
-      city: 'San Francisco',
-      state: 'CA',
-      zip: '94102',
-      country: 'United States',
-    },
-    productName: 'TechWidget Pro',
-    productModel: 'TW-2000',
-    serialNumber: 'SN-ABC123456',
-    purchaseDate: '2023-03-15',
-    purchaseAmount: '299.99',
-    storeName: 'Best Buy',
-    receiptNumber: 'REC-789012',
-  },
-  caseAnswers: {
-    ownedProduct: true,
-    purchasedInUS: true,
-    experiencedIssue: true,
-    claimAmount: 'full-refund',
-  },
-};
 
 // DOM Elements
 const elements = {
@@ -49,6 +17,7 @@ const elements = {
   packetName: document.getElementById('packet-name'),
   packetUser: document.getElementById('packet-user'),
   packetFields: document.getElementById('packet-fields'),
+  packetMeta: document.getElementById('packet-meta'),
   autofillBtn: document.getElementById('autofill-btn'),
   detectBtn: document.getElementById('detect-btn'),
   clearBtn: document.getElementById('clear-btn'),
@@ -69,18 +38,18 @@ let detectedFields = [];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('[Claimly Popup] Initializing...');
+  console.log('[Claimi Popup] Initializing...');
   
   // Load active packet from storage
   try {
     const response = await chrome.runtime.sendMessage({ action: 'getActivePacket' });
-    console.log('[Claimly Popup] Got active packet:', response);
+    console.log('[Claimi Popup] Got active packet:', response);
     if (response) {
       activePacket = response;
       updatePacketUI();
     }
   } catch (error) {
-    console.error('[Claimly Popup] Error loading packet:', error);
+    console.error('[Claimi Popup] Error loading packet:', error);
   }
   
   // Detect fields on current page
@@ -94,15 +63,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.loadSampleBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      console.log('[Claimly Popup] Load Sample clicked');
-      loadSamplePacket();
+      console.log('[Claimi Popup] How to Load clicked');
+      showDashboardInstructions();
     });
   }
   if (elements.clearPacketBtn) elements.clearPacketBtn.addEventListener('click', clearPacket);
   if (elements.cancelLoadBtn) elements.cancelLoadBtn.addEventListener('click', hideLoadSection);
   if (elements.confirmLoadBtn) elements.confirmLoadBtn.addEventListener('click', loadCustomPacket);
   
-  console.log('[Claimly Popup] Initialized');
+  console.log('[Claimi Popup] Initialized');
 });
 
 // Update status display
@@ -119,15 +88,57 @@ function updatePacketUI() {
     elements.packetEmpty.style.display = 'none';
     elements.packetInfo.style.display = 'block';
     elements.packetName.textContent = activePacket.settlementName || 'Unnamed Packet';
-    elements.packetUser.textContent = `👤 ${activePacket.userData?.fullName || activePacket.userData?.firstName || 'Unknown User'}`;
+    
+    // Show user info
+    const userName = activePacket._meta?.userFullName || 
+      activePacket.userData?.fullName || 
+      activePacket.userData?.firstName || 
+      'Unknown User';
+    elements.packetUser.textContent = `👤 ${userName}`;
+    
+    // Count data fields
     const fieldCount = Object.keys(flattenObject(activePacket.userData || {})).length;
-    elements.packetFields.textContent = `📋 ${fieldCount} data fields`;
+    const caseAnswerCount = Object.keys(activePacket.caseAnswers || {}).length;
+    elements.packetFields.textContent = `📋 ${fieldCount} profile fields, ${caseAnswerCount} case answers`;
+    
+    // Show metadata if available
+    if (elements.packetMeta) {
+      if (activePacket._meta?.source === 'dashboard') {
+        const receivedAt = activePacket._meta?.receivedAt ? 
+          formatTimeAgo(new Date(activePacket._meta.receivedAt)) : 
+          'unknown time';
+        elements.packetMeta.textContent = `✓ From dashboard ${receivedAt}`;
+        elements.packetMeta.style.display = 'block';
+      } else {
+        elements.packetMeta.style.display = 'none';
+      }
+    }
+    
     elements.autofillBtn.disabled = false;
   } else {
     elements.packetEmpty.style.display = 'flex';
     elements.packetInfo.style.display = 'none';
     elements.autofillBtn.disabled = true;
+    if (elements.packetMeta) {
+      elements.packetMeta.style.display = 'none';
+    }
   }
+}
+
+// Format time ago helper
+function formatTimeAgo(date) {
+  const now = new Date();
+  const diffMs = now - date;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  
+  if (diffSecs < 60) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
 }
 
 // Flatten nested object for counting
@@ -244,19 +255,23 @@ async function clearForm() {
   }
 }
 
-// Load sample packet
-async function loadSamplePacket() {
-  console.log('[Claimly Popup] Loading sample packet...');
-  try {
-    activePacket = SAMPLE_CLAIM_PACKET;
-    const response = await chrome.runtime.sendMessage({ action: 'setActivePacket', packet: activePacket });
-    console.log('[Claimly Popup] setActivePacket response:', response);
-    updatePacketUI();
-    updateStatus('📋', 'Sample packet loaded', 'Ready to autofill', 'success');
-  } catch (error) {
-    console.error('[Claimly Popup] Error loading sample:', error);
-    updateStatus('❌', 'Error loading sample', error.message, 'error');
-  }
+// Show instructions for loading a packet from dashboard
+function showDashboardInstructions() {
+  console.log('[Claimi Popup] Showing dashboard instructions');
+  updateStatus('📋', 'Load from Dashboard', 'Go to claimi.app to prepare a claim', 'info');
+  
+  // Show a helpful message
+  const message = `To use Claimi autofill:
+
+1. Go to the Claimi dashboard (localhost:3000 or claimi.app)
+2. Log in to your account
+3. Select a settlement you qualify for
+4. Answer the eligibility questions
+5. Click "Prepare claim for autofill"
+6. Navigate to the claim form
+7. Come back here and click Autofill!`;
+  
+  alert(message);
 }
 
 // Clear current packet

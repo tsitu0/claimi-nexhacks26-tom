@@ -1,6 +1,6 @@
-# Claimly Autofill Agent - Chrome Extension
+# Claimi Autofill Agent - Chrome Extension
 
-AI-powered autofill for class action settlement forms. Part of the Claimly platform.
+AI-powered autofill for class action settlement forms. Part of the Claimi platform.
 
 ## Features
 
@@ -20,7 +20,7 @@ AI-powered autofill for class action settlement forms. Part of the Claimly platf
 2. Enable **Developer mode** (toggle in top-right)
 3. Click **Load unpacked**
 4. Select the `extension` folder from this project
-5. The Claimly icon should appear in your toolbar
+5. The Claimi icon should appear in your toolbar
 
 ### Download Fuse.js (Required for Tier 2 matching)
 
@@ -37,7 +37,7 @@ Or manually download from [Fuse.js CDN](https://cdn.jsdelivr.net/npm/fuse.js@7.0
 ### Option 1: Test on Any Form
 
 1. Navigate to any website with a form (e.g., a contact form, signup page)
-2. Click the Claimly extension icon
+2. Click the Claimi extension icon
 3. Click **Load Sample** to load test data
 4. Click **Autofill Form**
 5. Review the highlighted fields
@@ -119,7 +119,7 @@ Open this file in Chrome (`file:///path/to/test.html`) and test the extension.
 
 ### Loading a Custom Packet
 
-1. Click the Claimly extension icon
+1. Click the Claimi extension icon
 2. Click anywhere in the "No packet loaded" area
 3. Paste your JSON claim packet
 4. Click **Load Packet**
@@ -182,18 +182,18 @@ extension/
 1. Open `chrome://extensions/`
 2. Click **Inspect views: service worker** to debug background script
 3. Right-click the extension icon → **Inspect popup** to debug popup
-4. Use browser DevTools on any page to debug content script (look for `[Claimly]` logs)
+4. Use browser DevTools on any page to debug content script (look for `[Claimi]` logs)
 
 ### Reloading Changes
 
 After making changes:
 1. Go to `chrome://extensions/`
-2. Click the refresh icon on the Claimly extension
+2. Click the refresh icon on the Claimi extension
 3. Reload any pages where you want to test
 
 ## API Integration (Future)
 
-The extension is designed to work with the Claimly backend API for:
+The extension is designed to work with the Claimi backend API for:
 
 - Fetching user claim packets
 - Tier 3 agentic field mapping
@@ -215,7 +215,7 @@ const CONFIG = {
 - Check that you selected the correct `extension` folder
 
 ### Fields not being filled
-- Check browser console for `[Claimly]` logs
+- Check browser console for `[Claimi]` logs
 - Verify the claim packet has data for those fields
 - Some sites use shadow DOM or iframes which may not be accessible
 
@@ -225,4 +225,4 @@ const CONFIG = {
 
 ## License
 
-Part of the Claimly project - AI-Powered Settlement Discovery & Autofill.
+Part of the Claimi project - AI-Powered Settlement Discovery & Autofill.
