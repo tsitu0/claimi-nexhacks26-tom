@@ -37,9 +37,6 @@ export default function Landing() {
     <div className="min-h-screen bg-[#0B0F1A] text-[#E5E7EB]">
       <header className="border-b border-white/10 bg-[#0E1424]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <div className="text-lg font-semibold tracking-wide text-white">
-            Claimi
-          </div>
         </div>
       </header>
 
@@ -48,6 +45,9 @@ export default function Landing() {
 
         <section className="mx-auto grid max-w-6xl gap-10 px-6 pb-16 pt-16 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <div className="space-y-6">
+            <div className="-mt-4 text-5xl font-semibold tracking-tight text-white md:text-6xl">
+              Claimi
+            </div>
             <Badge className="bg-white/5 text-white/80">
               Not a law firm • No legal advice • You control submissions
             </Badge>
@@ -82,9 +82,43 @@ export default function Landing() {
                 match your profile.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="h-24 rounded-xl border border-white/10 bg-white/5" />
-              <div className="h-6 w-3/4 rounded-lg border border-white/10 bg-white/5" />
+            <CardContent className="space-y-4">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between text-xs text-white/60">
+                  <span>Profile preview</span>
+                  <span>2 min setup</span>
+                </div>
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        Jordan Lee
+                      </p>
+                      <p className="text-xs text-white/50">
+                        San Diego, CA
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-xs text-white/70">
+                      3 matches
+                    </span>
+                  </div>
+                  <div className="grid gap-2 text-xs text-white/60 md:grid-cols-2">
+                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      Employment: Full-time
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      Contact: Email
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60">
+                    Matching for: Subscription + Consumer claims
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
+                Matches found: <span className="text-white">3</span> • Est.
+                payout range: <span className="text-white">$140-$380</span>
+              </div>
             </CardContent>
             <CardFooter className="flex flex-wrap gap-3">
               <Button size="lg" onClick={() => router.push("/signup")}>
