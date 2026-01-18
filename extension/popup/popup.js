@@ -12,7 +12,7 @@ const SAMPLE_CLAIM_PACKET = {
     lastName: 'Doe',
     fullName: 'John Doe',
     email: 'john.doe@email.com',
-    phone: '555-123-4567',
+    phone: '415-555-0123',
     dateOfBirth: '1990-05-15',
     address: {
       street: '123 Main Street',
