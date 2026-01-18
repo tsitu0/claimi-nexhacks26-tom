@@ -1,0 +1,41 @@
+{
+  "name": "claimi-nexhacks26",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "leanmcp:login": "leanmcp login",
+    "leanmcp:deploy": "leanmcp deploy",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khanrazeen42/claimi-nexhacks26.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/khanrazeen42/claimi-nexhacks26/issues"
+  },
+  "homepage": "https://github.com/khanrazeen42/claimi-nexhacks26#readme",
+  "devDependencies": {
+    "@leanmcp/cli": "^0.4.5",
+    "@leanmcp/core": "^0.3.17",
+    "@types/node": "^25.0.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
+    "axios": "^1.13.2",
+    "cheerio": "^1.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "openai": "^6.16.0"
+  }
+}
