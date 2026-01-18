@@ -323,7 +323,7 @@ const FIELD_SCHEMAS = {
       types: ['date'],
     },
     negativeSignals: {
-      keywords: ['purchase', 'order', 'event', 'incident', 'transaction'],
+      keywords: ['purchase', 'order', 'event', 'incident', 'transaction', 'date of product purchase'],
       autocomplete: [],
       types: [],
     },
