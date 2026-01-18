@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claimly Autofill</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">C</div>
+        <div class="logo-text">
+          <h1>Claimly</h1>
+          <span>Autofill Agent</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Status Section -->
+      <section class="section" id="status-section">
+        <div class="status-card" id="status-card">
+          <div class="status-icon" id="status-icon">🔍</div>
+          <div class="status-text">
+            <span class="status-title" id="status-title">Detecting forms...</span>
+            <span class="status-subtitle" id="status-subtitle">Scanning page</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Active Claim Packet -->
+      <section class="section">
+        <h2 class="section-title">Active Claim Packet</h2>
+        <div class="packet-card" id="packet-card">
+          <div class="packet-empty" id="packet-empty">
+            <span class="packet-empty-icon">📋</span>
+            <span>No packet loaded</span>
+            <button class="btn btn-sm" id="load-sample">Load Sample</button>
+          </div>
+          <div class="packet-info" id="packet-info" style="display: none;">
+            <div class="packet-header">
+              <span class="packet-name" id="packet-name">Settlement Name</span>
+              <button class="btn-icon" id="clear-packet" title="Clear packet">×</button>
+            </div>
+            <div class="packet-details">
+              <span id="packet-user"></span>
+              <span id="packet-fields"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <section class="section">
+        <button class="btn btn-primary btn-full" id="autofill-btn" disabled>
+          <span class="btn-icon-left">✨</span>
+          Autofill Form
+        </button>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="detect-btn">
+            <span>🔍</span> Detect Fields
+          </button>
+          <button class="btn btn-secondary" id="clear-btn">
+            <span>🗑️</span> Clear Form
+          </button>
+        </div>
+      </section>
+
+      <!-- Field Detection Results -->
+      <section class="section" id="fields-section" style="display: none;">
+        <h2 class="section-title">
+          Detected Fields
+          <span class="badge" id="field-count">0</span>
+        </h2>
+        <div class="fields-list" id="fields-list"></div>
+      </section>
+
+      <!-- Load Packet Modal -->
+      <section class="section" id="load-section" style="display: none;">
+        <h2 class="section-title">Load Claim Packet</h2>
+        <textarea 
+          class="textarea" 
+          id="packet-input" 
+          placeholder="Paste JSON claim packet here..."
+          rows="6"
+        ></textarea>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="cancel-load">Cancel</button>
+          <button class="btn btn-primary" id="confirm-load">Load Packet</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <a href="#" id="settings-link">Settings</a>
+      <span class="version">v1.0.0</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
