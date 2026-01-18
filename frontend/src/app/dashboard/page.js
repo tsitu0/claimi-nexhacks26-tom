@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [extensionStatus, setExtensionStatus] = useState("checking"); // checking, installed, not_installed
   const [applyStatus, setApplyStatus] = useState("idle"); // idle, sending, success, error
   const [applyError, setApplyError] = useState("");
+  const applyTimeoutRef = useRef(null);
 
   // Check if Claimi extension is installed
   useEffect(() => {
@@ -38,6 +39,11 @@ export default function DashboardPage() {
 
     const handlePacketStored = (event) => {
       console.log("[Dashboard] Packet stored result:", event.detail);
+      // Clear the timeout since we got a response
+      if (applyTimeoutRef.current) {
+        clearTimeout(applyTimeoutRef.current);
+        applyTimeoutRef.current = null;
+      }
       if (event.detail?.success) {
         setApplyStatus("success");
       } else {
@@ -348,14 +354,29 @@ export default function DashboardPage() {
       return;
     }
 
+    if (!hasSubmitted) {
+      setApplyError("Please submit your answers first before preparing for autofill");
+      setApplyStatus("error");
+      return;
+    }
+
     setApplyStatus("sending");
     setApplyError("");
 
-    // Build the claim packet
+    // Get claim form URL
+    const formUrl =
+      typeof selectedSettlement?.claim_form_url === "string"
+        ? selectedSettlement.claim_form_url.trim()
+        : "";
+
+    // Build the claim packet with all user and settlement data
     const claimPacket = {
       id: selectedSettlement.id || selectedSettlement.settlement_id,
       settlementName: selectedSettlement.settlement_title || "Unknown Settlement",
       settlementId: selectedSettlement.settlement_id,
+      claimFormUrl: formUrl,
+      sourceUrl: selectedSettlement.source_url || "",
+      userId: userId,
       userData: {
         firstName: profile.legal_first_name || "",
         lastName: profile.legal_last_name || "",
@@ -373,58 +394,34 @@ export default function DashboardPage() {
       },
       caseAnswers: {},
       caseAnswerMeta: {},
+      // Include structured answer items (same format as settlement_responses)
+      answerItems: [],
     };
 
-    // Collect user's answers to eligibility questions
+    // Use buildAnswerItems to get structured answers (matches settlement_responses format)
     const settlementKey =
       selectedSettlement.id || selectedSettlement.settlement_id || "settlement";
-    const onboardingQuestions = parseJsonField(
-      selectedSettlement.onboarding_questions
-    );
+    const answerItems = buildAnswerItems();
+    claimPacket.answerItems = answerItems;
 
-    if (Array.isArray(onboardingQuestions)) {
-      onboardingQuestions.forEach((question, index) => {
-        const key = `${settlementKey}-question-${question?.id ?? index}`;
-        const answer = responses[key];
-        if (answer) {
-          // Create a snake_case key from the question
-          const answerKey =
-            question?.id ||
-            `question_${index}`;
-          claimPacket.caseAnswers[answerKey] = answer === "yes";
-          claimPacket.caseAnswerMeta[answerKey] =
-            question?.question || `Question ${index + 1}`;
-        }
-      });
-    }
-
-    // Collect answers to general/specific requirements
-    const parsedGeneralReqs = parseJsonField(
-      selectedSettlement.general_requirements
-    );
-    const parsedSpecificReqs = parseJsonField(
-      selectedSettlement.specific_requirements
-    );
-
-    [
-      { items: parsedGeneralReqs, prefix: "general" },
-      { items: parsedSpecificReqs, prefix: "specific" },
-    ].forEach(({ items, prefix }) => {
-      if (Array.isArray(items)) {
-        items.forEach((item, index) => {
-          const key = `${settlementKey}-${prefix}-${item?.id ?? index}`;
-          const answer = responses[key];
-          if (answer) {
-            const answerKey = `${prefix}_${item?.id || index}`;
-            claimPacket.caseAnswers[answerKey] = answer === "yes";
-            claimPacket.caseAnswerMeta[answerKey] =
-              item?.description || item?.original_text || `${prefix} requirement`;
-          }
-        });
+    // Also build caseAnswers/caseAnswerMeta for backward compatibility with autofill
+    // Note: For eligibility questions, "yes" is the correct/qualifying answer
+    answerItems.forEach((item) => {
+      if (item.answer) {
+        // Convert the key to a cleaner format for caseAnswers
+        const cleanKey = item.key.replace(`${settlementKey}-`, "").replace(/-/g, "_");
+        // Store as boolean (true = yes, false = no)
+        claimPacket.caseAnswers[cleanKey] = item.answer === "yes";
+        claimPacket.caseAnswerMeta[cleanKey] = item.question;
       }
     });
 
     console.log("[Dashboard] Sending claim packet to extension:", claimPacket);
+
+    // Clear any existing timeout
+    if (applyTimeoutRef.current) {
+      clearTimeout(applyTimeoutRef.current);
+    }
 
     // Dispatch custom event to the extension
     window.dispatchEvent(
@@ -434,13 +431,17 @@ export default function DashboardPage() {
     );
 
     // Set a timeout in case extension doesn't respond
-    setTimeout(() => {
-      if (applyStatus === "sending") {
-        setApplyStatus("error");
-        setApplyError(
-          "No response from extension. Make sure the Claimi extension is installed and enabled."
-        );
-      }
+    // Use a ref and setApplyStatus callback to avoid stale closure issue
+    applyTimeoutRef.current = setTimeout(() => {
+      setApplyStatus((currentStatus) => {
+        if (currentStatus === "sending") {
+          setApplyError(
+            "No response from extension. Make sure the Claimi extension is installed and enabled, then refresh this page."
+          );
+          return "error";
+        }
+        return currentStatus;
+      });
     }, 5000);
   };
 
@@ -1238,12 +1239,12 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Apply to Claim Section */}
-              <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs uppercase tracking-wide text-white/40">
-                  Apply for this claim
-                </p>
-                {eligibilityStatus === "Qualifies" ? (
+              {/* Apply to Claim Section - Only show when hasSubmitted and qualifies */}
+              {hasSubmitted && eligibilityStatus === "Qualifies" && (
+                <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-white/40">
+                    Autofill with Claimi Extension
+                  </p>
                   <div className="mt-3 space-y-3">
                     {extensionStatus === "not_installed" && (
                       <p className="text-sm text-amber-400">
@@ -1253,9 +1254,21 @@ export default function DashboardPage() {
                     {applyStatus === "success" && (
                       <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3">
                         <p className="text-sm text-green-400">
-                          Claim packet sent to extension! Navigate to the claim form
-                          and click the Claimi extension to autofill.
+                          Claim packet sent to extension!
                         </p>
+                        {claimFormUrl && canLinkClaimFormUrl && (
+                          <p className="mt-2 text-sm text-green-300">
+                            <a
+                              href={claimFormUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="underline decoration-green-300/50 underline-offset-2 hover:decoration-green-300"
+                            >
+                              Open claim form
+                            </a>
+                            {" "}then click the Claimi extension to autofill.
+                          </p>
+                        )}
                       </div>
                     )}
                     {applyStatus === "error" && (
@@ -1276,25 +1289,51 @@ export default function DashboardPage() {
                         ? "Send again"
                         : "Prepare claim for autofill"}
                     </Button>
-                    {applyStatus === "success" && (
+                    {applyStatus !== "success" && claimFormUrl && (
                       <p className="text-xs text-white/50 text-center">
-                        Open the claim form URL in a new tab, then click the Claimi
-                        extension icon and press Autofill.
+                        This will prepare your data for the claim form at{" "}
+                        <span className="text-white/70">{claimFormUrl}</span>
                       </p>
                     )}
                   </div>
-                ) : eligibilityStatus === "Does not qualify" ? (
+                </div>
+              )}
+
+              {/* Message when not yet submitted or doesn't qualify */}
+              {!hasSubmitted && eligibilityStatus === "Qualifies" && (
+                <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-white/40">
+                    Autofill with Claimi Extension
+                  </p>
+                  <p className="mt-3 text-sm text-white/70">
+                    Click "Submit" above to save your answers, then you can prepare your claim for autofill.
+                  </p>
+                </div>
+              )}
+
+              {eligibilityStatus === "Does not qualify" && (
+                <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-white/40">
+                    Eligibility
+                  </p>
                   <p className="mt-3 text-sm text-red-400">
                     Based on your answers, you may not be eligible for this
-                    settlement.
+                    settlement. Remember: answering "Yes" to eligibility questions typically indicates you qualify.
                   </p>
-                ) : (
+                </div>
+              )}
+
+              {eligibilityStatus === "Not enough info" && (
+                <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-white/40">
+                    Eligibility
+                  </p>
                   <p className="mt-3 text-sm text-white/70">
                     Please answer all eligibility questions above to check if you
-                    qualify.
+                    qualify. For most settlement claims, answering "Yes" indicates you meet the requirement.
                   </p>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

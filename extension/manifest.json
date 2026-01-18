@@ -45,6 +45,7 @@
     {
       "matches": [
         "http://localhost:3000/*",
+        "http://localhost:3001/*",
         "https://claimi.app/*",
         "https://*.claimi.app/*"
       ],
