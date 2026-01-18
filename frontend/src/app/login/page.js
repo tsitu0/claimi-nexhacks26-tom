@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
+import GoogleLogo from "@/components/GoogleLogo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -85,7 +86,7 @@ export default function LoginPage() {
       <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-6 py-12">
         <div className="grid w-full gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <div className="hidden lg:flex flex-col gap-6">
-            <div className="text-lg font-semibold tracking-wide text-white">
+            <div className="text-5xl font-semibold tracking-tight text-white">
               Claimi
             </div>
             <Badge className="w-fit">Secure access</Badge>
@@ -106,7 +107,7 @@ export default function LoginPage() {
           </div>
 
           <div className="flex flex-col items-center gap-6">
-            <div className="text-lg font-semibold tracking-wide text-white lg:hidden">
+            <div className="text-5xl font-semibold tracking-tight text-white lg:hidden">
               Claimi
             </div>
             <Card className="w-full max-w-md border-white/10 bg-[#0E1424]/90">
@@ -116,11 +117,14 @@ export default function LoginPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <Button
-                  className="w-full"
+                  className="w-full border border-slate-200 bg-white text-black hover:bg-slate-100"
                   onClick={handleGoogle}
                   disabled={status === "loading"}
                 >
-                  Continue with Google
+                  <span className="flex items-center gap-2">
+                    <GoogleLogo className="h-4 w-4" />
+                    Continue with Google
+                  </span>
                 </Button>
                 <div className="text-center text-xs text-[#9CA3AF]">
                   or continue with email

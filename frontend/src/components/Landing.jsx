@@ -14,9 +14,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import GoogleLogo from "@/components/GoogleLogo";
+import { supabase } from "@/lib/supabase";
 
 export default function Landing() {
   const [healthStatus, setHealthStatus] = useState("loading");
+  const [authStatus, setAuthStatus] = useState("idle");
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5171";
   const router = useRouter();
 
@@ -32,6 +35,19 @@ export default function Landing() {
     };
     check();
   }, [apiUrl]);
+
+  const handleGoogle = async () => {
+    setAuthStatus("loading");
+    const redirectUrl = new URL("/auth/callback", window.location.origin);
+    redirectUrl.searchParams.set("next", "/dashboard");
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: redirectUrl.toString(),
+      },
+    });
+    setAuthStatus("idle");
+  };
 
   return (
     <div className="min-h-screen bg-[#0B0F1A] text-[#E5E7EB]">
@@ -61,8 +77,16 @@ export default function Landing() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button size="lg" onClick={() => router.push("/signup")}>
-                Continue with Google
+              <Button
+                size="lg"
+                className="border border-slate-200 bg-white text-black hover:bg-slate-100"
+                onClick={handleGoogle}
+                disabled={authStatus === "loading"}
+              >
+                <span className="flex items-center gap-2">
+                  <GoogleLogo className="h-4 w-4" />
+                  Continue with Google
+                </span>
               </Button>
               <Button
                 variant="outline"
