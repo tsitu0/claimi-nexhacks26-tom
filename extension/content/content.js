@@ -244,8 +244,11 @@ const FIELD_SCHEMAS = {
     dataType: 'text',
     positiveSignals: {
       autocomplete: ['address-line2'],
-      keywords: ['apartment', 'apt number', 'unit number', 'suite', 'floor'],
-      patterns: [/^apt$/i, /^unit$/i, /^suite$/i, /^address[-_]?2$/i],
+      keywords: ['apartment', 'apt number', 'unit number', 'suite', 'floor', 
+                 'address line 2', 'address 2', 'apt/unit/suite', 'apt unit suite',
+                 'apt suite unit', 'building', 'apt/suite'],
+      patterns: [/^apt$/i, /^unit$/i, /^suite$/i, /^address[-_]?2$/i, /^addr2$/i,
+                 /^line[-_]?2$/i, /^address[-_]?line[-_]?2$/i],
     },
     negativeSignals: { keywords: [], autocomplete: [], types: [] },
     validator: (value) => typeof value === 'string',
@@ -775,6 +778,7 @@ function matchFieldTiered(field) {
   
   // TIER 1.5: Hardcoded exact label matches (high confidence for common fields)
   const exactLabelMatches = {
+    // Phone
     'phone number': 'phone',
     'phone': 'phone',
     'telephone': 'phone',
@@ -785,6 +789,7 @@ function matchFieldTiered(field) {
     'cell phone number': 'phone',
     'contact phone': 'phone',
     'daytime phone': 'phone',
+    // Email
     'email': 'email',
     'email address': 'email',
     'e-mail': 'email',
@@ -795,14 +800,29 @@ function matchFieldTiered(field) {
     'confirm your email': 'email',
     'verify email': 'email',
     'verify email address': 'email',
+    // Name
     'first name': 'firstName',
     'last name': 'lastName',
     'full name': 'fullName',
     'your name': 'fullName',
     'name': 'fullName',
+    // Address Line 1 (street)
     'street address': 'address.street',
     'mailing address': 'address.street',
     'address': 'address.street',
+    'address line 1': 'address.street',
+    'address 1': 'address.street',
+    // Address Line 2 (unit/apt) - MUST come after to override
+    'address line 2': 'address.unit',
+    'address 2': 'address.unit',
+    'apt': 'address.unit',
+    'apt.': 'address.unit',
+    'apartment': 'address.unit',
+    'unit': 'address.unit',
+    'suite': 'address.unit',
+    'apt/unit/suite': 'address.unit',
+    'apt, unit, suite': 'address.unit',
+    // Other address fields
     'city': 'address.city',
     'state': 'address.state',
     'zip code': 'address.zip',
@@ -811,7 +831,17 @@ function matchFieldTiered(field) {
     'country': 'address.country',
   };
   
+  // Check for "line 2" or "address 2" patterns first (more specific)
   const labelLower = normalizeForDisplay(labelText);
+  
+  // Special handling: if label contains "line 2" or "address 2", it's address.unit
+  if (/line\s*2|address\s*2|addr\s*2/i.test(labelText)) {
+    if (!hasNegativeEvidence('address.unit', semantics, labelText, descriptionText)) {
+      console.log(`[Claimly]   ✅ T1.5: "line 2/address 2" pattern → address.unit (0.95)`);
+      return { key: 'address.unit', tier: 1.5, confidence: 0.95 };
+    }
+  }
+  
   if (exactLabelMatches[labelLower]) {
     const key = exactLabelMatches[labelLower];
     if (!hasNegativeEvidence(key, semantics, labelText, descriptionText)) {
