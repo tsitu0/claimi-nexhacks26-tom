@@ -25,6 +25,10 @@ export default function DashboardPage() {
   const [profileForm, setProfileForm] = useState(null);
   const [saveStatus, setSaveStatus] = useState("idle");
   const [saveError, setSaveError] = useState("");
+  const [userId, setUserId] = useState("");
+  const [submitStatus, setSubmitStatus] = useState("idle");
+  const [submitError, setSubmitError] = useState("");
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -37,6 +41,7 @@ export default function DashboardPage() {
         return;
       }
       setUserEmail(user.email || "");
+      setUserId(user.id);
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
@@ -80,6 +85,8 @@ export default function DashboardPage() {
               "id",
               "settlement_id",
               "settlement_title",
+              "source_url",
+              "claim_form_url",
               "general_requirements",
               "specific_requirements",
               "onboarding_questions",
@@ -122,6 +129,12 @@ export default function DashboardPage() {
 
     load();
   }, [router]);
+
+  useEffect(() => {
+    setSubmitStatus("idle");
+    setSubmitError("");
+    setHasSubmitted(false);
+  }, [selectedSettlement?.id]);
 
   if (status === "loading") {
     return (
@@ -331,6 +344,9 @@ export default function DashboardPage() {
 
   const setAnswer = (key, value) => {
     setResponses((prev) => ({ ...prev, [key]: value }));
+    if (key.startsWith(`${settlementKey}-`)) {
+      setHasSubmitted(false);
+    }
   };
 
   const renderItemList = (items, renderItem, keyPrefix) => {
@@ -393,6 +409,15 @@ export default function DashboardPage() {
   );
   const settlementKey =
     selectedSettlement?.id || selectedSettlement?.settlement_id || "settlement";
+  const sourceUrl =
+    typeof selectedSettlement?.source_url === "string"
+      ? selectedSettlement.source_url.trim()
+      : "";
+  const claimFormUrl =
+    typeof selectedSettlement?.claim_form_url === "string"
+      ? selectedSettlement.claim_form_url.trim()
+      : "";
+  const canLinkClaimFormUrl = /^https?:\/\//i.test(claimFormUrl);
 
   const normalizedAnswer = (value) =>
     value === null || value === undefined
@@ -402,6 +427,52 @@ export default function DashboardPage() {
   const onboardingQuestions = Array.isArray(parsedOnboardingQuestions)
     ? parsedOnboardingQuestions
     : [];
+
+  const buildAnswerItems = () => {
+    const items = [];
+    const pushItems = (list, keyPrefix, getQuestion, section) => {
+      if (!Array.isArray(list)) {
+        return;
+      }
+      list.forEach((item, index) => {
+        const key = `${keyPrefix}-${item?.id ?? index}`;
+        const questionText = getQuestion(item) || "Question";
+        items.push({
+          key,
+          section,
+          question: questionText,
+          answer: responses[key] ?? null,
+        });
+      });
+    };
+
+    pushItems(
+      onboardingQuestions,
+      `${settlementKey}-question`,
+      (item) => item?.question,
+      "onboarding"
+    );
+    pushItems(
+      parsedGeneralRequirements,
+      `${settlementKey}-general`,
+      (item) => item?.description || item?.original_text || "Requirement",
+      "general"
+    );
+    pushItems(
+      parsedSpecificRequirements,
+      `${settlementKey}-specific`,
+      (item) => item?.description || item?.original_text || "Requirement",
+      "specific"
+    );
+    pushItems(
+      parsedProofChecklist,
+      `${settlementKey}-proof`,
+      (item) => item?.description || "Proof item",
+      "proof"
+    );
+
+    return items;
+  };
 
   const eligibilityStatus = (() => {
     let answeredCount = 0;
@@ -462,6 +533,37 @@ export default function DashboardPage() {
     }
     return "Not enough info";
   })();
+
+  const handleSubmitAnswers = async () => {
+    if (!selectedSettlement || !userId) {
+      return;
+    }
+    setSubmitStatus("loading");
+    setSubmitError("");
+    const answerItems = buildAnswerItems();
+    const payload = {
+      user_id: userId,
+      settlement_key: String(settlementKey),
+      settlement_record_id: selectedSettlement?.id
+        ? String(selectedSettlement.id)
+        : null,
+      settlement_external_id: selectedSettlement?.settlement_id
+        ? String(selectedSettlement.settlement_id)
+        : null,
+      answers: answerItems,
+      eligibility_status: eligibilityStatus,
+    };
+    const { error: submitError } = await supabase
+      .from("settlement_responses")
+      .upsert(payload, { onConflict: "user_id,settlement_key" });
+    if (submitError) {
+      setSubmitError(submitError.message);
+      setSubmitStatus("idle");
+      return;
+    }
+    setSubmitStatus("success");
+    setHasSubmitted(true);
+  };
 
   return (
     <div className="min-h-screen bg-[#0B0F1A] text-[#E5E7EB]">
@@ -783,6 +885,19 @@ export default function DashboardPage() {
                 <h2 className="text-2xl font-semibold">
                   {selectedSettlement.settlement_title || "Untitled settlement"}
                 </h2>
+                {sourceUrl && (
+                  <p className="text-sm text-white/70">
+                    Source:{" "}
+                    <a
+                      className="break-all text-white underline decoration-white/30 underline-offset-4 hover:decoration-white"
+                      href={sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {sourceUrl}
+                    </a>
+                  </p>
+                )}
                 <p className="text-sm text-white/70">
                   Settlement ID: {selectedSettlement.settlement_id || "Unknown"}
                 </p>
@@ -924,11 +1039,55 @@ export default function DashboardPage() {
                   `${settlementKey}-proof`
                 )}
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              {hasSubmitted &&
+                eligibilityStatus === "Qualifies" &&
+                claimFormUrl && (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-white/40">
+                    Claim form
+                  </p>
+                  <div className="mt-2 text-sm text-white">
+                    {canLinkClaimFormUrl ? (
+                      <a
+                        className="break-all underline decoration-white/30 underline-offset-4 hover:decoration-white"
+                        href={claimFormUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {claimFormUrl}
+                      </a>
+                    ) : (
+                      <span className="break-all text-white/70">
+                        {claimFormUrl}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="mx-auto w-full max-w-md rounded-xl border border-white/10 bg-white/5 p-5 text-center">
                 <p className="text-xs uppercase tracking-wide text-white/40">
-                  Eligibility status
+                  Submit answers
                 </p>
-                <p className="mt-2 text-sm text-white">{eligibilityStatus}</p>
+                <div className="mt-3 flex flex-col items-center gap-2 text-sm text-white">
+                  <Button
+                    size="lg"
+                    className="min-w-[200px]"
+                    onClick={handleSubmitAnswers}
+                    disabled={submitStatus === "loading"}
+                  >
+                    {submitStatus === "loading"
+                      ? "Submitting..."
+                      : hasSubmitted
+                        ? "Submitted"
+                        : "Submit"}
+                  </Button>
+                  {hasSubmitted && submitStatus === "success" && (
+                    <span className="text-white/70">Answers saved.</span>
+                  )}
+                </div>
+                {submitError && (
+                  <p className="mt-2 text-sm text-red-300">{submitError}</p>
+                )}
               </div>
             </div>
           </div>
