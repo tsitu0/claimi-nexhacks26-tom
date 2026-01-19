@@ -32,6 +32,13 @@ Backend /api/autofill/triage-fields (LLM-assisted field triage)
 - `discovery-bot/` Settlement intake agent (scrape + normalize).
 - `logic-bot/` Requirement parser + onboarding question generator.
 
+## Tech stack and frameworks
+- Web app: Next.js + React, Tailwind CSS, Supabase JS/SSR.
+- API: Node.js + Express, Supabase JS, OpenAI SDK.
+- Bots: Node.js + TypeScript (ts-node), LeanMCP, Cheerio, Axios.
+- Extension: Chrome Extension MV3, Fuse.js + MiniSearch for matching.
+- Data: Supabase (Postgres + auth).
+
 ## Web app behavior (from the code)
 Onboarding:
 - `frontend/src/app/onboarding/page.js` writes to `profiles`.
